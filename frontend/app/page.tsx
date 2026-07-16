@@ -1,4 +1,167 @@
+"use client";
+
+import { useEffect, useRef, useState, type FormEvent } from "react";
+
+const demos = {
+  barber: {
+    label: "Barber",
+    icon: "✂️",
+    businessName: "Northside Barbers",
+    welcome: "Hi! I’m the Northside Barbers assistant. How can I help today?",
+    fakeResponse:
+      "Thanks for your message! One of our barbers can help with that. Would you like to make a booking?",
+    conversations: [
+      {
+        question: "Do you take walk-ins?",
+        answer:
+          "Yes! Walk-ins are welcome, although weekends are usually busy.",
+      },
+      {
+        question: "What time do you close?",
+        answer: "We close at 7pm Monday to Saturday and 4pm on Sunday.",
+      },
+      {
+        question: "Can I book a skin fade?",
+        answer: "Absolutely. I can help you find the next available appointment.",
+      },
+    ],
+  },
+  restaurant: {
+    label: "Restaurant",
+    icon: "🍕",
+    businessName: "Bella Pizza Kitchen",
+    welcome: "Welcome to Bella Pizza Kitchen. What can I help you with?",
+    fakeResponse:
+      "Thanks for asking! Our restaurant team can help with that. Would you like to place an order or reserve a table?",
+    conversations: [
+      {
+        question: "Do you offer delivery?",
+        answer: "Yes, we deliver locally every day from 5pm until 10pm.",
+      },
+      {
+        question: "Do you have vegan options?",
+        answer: "We do! Several pizzas can be made with vegan cheese and toppings.",
+      },
+      {
+        question: "Can I reserve a table?",
+        answer: "Of course. Let me help you check availability for your preferred time.",
+      },
+    ],
+  },
+  dentist: {
+    label: "Dentist",
+    icon: "🦷",
+    businessName: "Riverside Dental Care",
+    welcome: "Hello! I’m here to help with questions about Riverside Dental Care.",
+    fakeResponse:
+      "Thanks for getting in touch. Our reception team can help with that and arrange an appointment if needed.",
+    conversations: [
+      {
+        question: "Are you accepting new patients?",
+        answer: "Yes, we are currently welcoming new private patients.",
+      },
+      {
+        question: "Do you offer emergency appointments?",
+        answer: "Yes. Please contact us as early as possible for same-day availability.",
+      },
+      {
+        question: "How often should I have a check-up?",
+        answer: "Your dentist will recommend a schedule based on your individual needs.",
+      },
+    ],
+  },
+  gym: {
+    label: "Gym",
+    icon: "🏋️",
+    businessName: "Forge Fitness",
+    welcome: "Hi! Welcome to Forge Fitness. How can I help you get started?",
+    fakeResponse:
+      "Great question! Our fitness team can help with that. Would you like to arrange a visit to the gym?",
+    conversations: [
+      {
+        question: "Can I try the gym before joining?",
+        answer: "Yes! You can book a day pass to explore the gym and meet the team.",
+      },
+      {
+        question: "Do you offer personal training?",
+        answer: "We do. Our trainers offer one-to-one sessions for all fitness levels.",
+      },
+      {
+        question: "What are your opening hours?",
+        answer: "We’re open from 6am to 10pm on weekdays and 8am to 8pm at weekends.",
+      },
+    ],
+  },
+} as const;
+
+type DemoType = keyof typeof demos;
+type ChatMessage = {
+  role: "user" | "assistant";
+  text: string;
+};
+
 export default function Home() {
+  const [selectedDemo, setSelectedDemo] = useState<DemoType>("barber");
+  const [selectedQuestion, setSelectedQuestion] = useState(0);
+  const [message, setMessage] = useState("");
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [isReplying, setIsReplying] = useState(false);
+  const replyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const demo = demos[selectedDemo];
+  const conversation = demo.conversations[selectedQuestion];
+
+  useEffect(() => {
+    return () => {
+      if (replyTimer.current) clearTimeout(replyTimer.current);
+    };
+  }, []);
+
+  function cancelPendingReply() {
+    if (replyTimer.current) {
+      clearTimeout(replyTimer.current);
+      replyTimer.current = null;
+    }
+    setIsReplying(false);
+  }
+
+  function selectDemo(demoType: DemoType) {
+    cancelPendingReply();
+    setSelectedDemo(demoType);
+    setSelectedQuestion(0);
+    setChatMessages([]);
+    setMessage("");
+  }
+
+  function selectQuestion(index: number) {
+    cancelPendingReply();
+    setSelectedQuestion(index);
+    setChatMessages([]);
+  }
+
+  function sendMessage(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    const trimmedMessage = message.trim();
+    if (!trimmedMessage || isReplying) return;
+
+    const response = demo.fakeResponse;
+    setChatMessages((current) => [
+      ...current,
+      { role: "user", text: trimmedMessage },
+    ]);
+    setMessage("");
+    setIsReplying(true);
+
+    replyTimer.current = setTimeout(() => {
+      setChatMessages((current) => [
+        ...current,
+        { role: "assistant", text: response },
+      ]);
+      setIsReplying(false);
+      replyTimer.current = null;
+    }, 900);
+  }
+
   return (
     <main className="relative min-h-screen overflow-hidden bg-slate-950 text-white selection:bg-blue-400/30">
       <div
@@ -197,6 +360,203 @@ export default function Home() {
                 We help with setup, improvements and maintenance after launch.
               </p>
             </article>
+          </div>
+        </div>
+      </section>
+
+      <section
+        id="demo"
+        className="relative z-10 scroll-mt-8 px-5 py-20 sm:px-8 sm:py-28"
+      >
+        <div className="mx-auto max-w-6xl">
+          <div className="mx-auto max-w-2xl text-center">
+            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-blue-400">
+              Interactive demo
+            </p>
+            <h2 className="mt-3 text-3xl font-bold tracking-tight text-white sm:text-4xl lg:text-5xl">
+              Try Our AI Assistant
+            </h2>
+            <p className="mt-5 text-base leading-7 text-slate-300 sm:text-lg">
+              Choose a business, then select a common question to see how an AI
+              assistant could respond instantly.
+            </p>
+          </div>
+
+          <div
+            aria-label="Choose a business demo"
+            className="mx-auto mt-10 grid max-w-3xl grid-cols-2 gap-3 sm:grid-cols-4"
+          >
+            {(Object.keys(demos) as DemoType[]).map((demoType) => {
+              const item = demos[demoType];
+              const isSelected = selectedDemo === demoType;
+
+              return (
+                <button
+                  key={demoType}
+                  type="button"
+                  aria-pressed={isSelected}
+                  onClick={() => selectDemo(demoType)}
+                  className={`rounded-xl border px-4 py-3 text-sm font-semibold transition duration-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400 sm:text-base ${
+                    isSelected
+                      ? "border-blue-400/50 bg-blue-600 text-white shadow-lg shadow-blue-600/20"
+                      : "border-white/10 bg-white/[0.04] text-slate-300 hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
+                  }`}
+                >
+                  <span aria-hidden="true" className="mr-2">
+                    {item.icon}
+                  </span>
+                  {item.label}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="mt-8 overflow-hidden rounded-3xl border border-white/10 bg-white/[0.04] shadow-2xl shadow-blue-950/30 backdrop-blur-xl">
+            <div className="grid lg:grid-cols-[0.85fr_1.15fr]">
+              <div className="border-b border-white/10 p-6 sm:p-8 lg:border-b-0 lg:border-r">
+                <div aria-live="polite" className="transition-opacity duration-300">
+                  <p className="text-sm font-medium text-blue-300">Demo business</p>
+                  <h3 className="mt-2 text-2xl font-bold tracking-tight text-white">
+                    {demo.businessName}
+                  </h3>
+                  <p className="mt-4 leading-7 text-slate-400">{demo.welcome}</p>
+                </div>
+
+                <div className="mt-8">
+                  <p className="text-sm font-semibold text-slate-200">
+                    Try an example question
+                  </p>
+                  <div className="mt-3 flex flex-col gap-2">
+                    {demo.conversations.map((item, index) => (
+                      <button
+                        key={item.question}
+                        type="button"
+                        aria-pressed={selectedQuestion === index}
+                        onClick={() => selectQuestion(index)}
+                        className={`rounded-xl border px-4 py-3 text-left text-sm leading-6 transition duration-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400 ${
+                          selectedQuestion === index
+                            ? "border-blue-400/40 bg-blue-400/10 text-white"
+                            : "border-white/10 bg-slate-950/30 text-slate-400 hover:border-white/20 hover:text-slate-200"
+                        }`}
+                      >
+                        {item.question}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex min-h-[30rem] flex-col bg-slate-950/40">
+                <div className="flex items-center gap-3 border-b border-white/10 px-5 py-4 sm:px-6">
+                  <span
+                    aria-hidden="true"
+                    className="relative flex h-10 w-10 items-center justify-center rounded-full bg-blue-500/15 text-xl"
+                  >
+                    {demo.icon}
+                    <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-slate-950 bg-emerald-400" />
+                  </span>
+                  <div>
+                    <p className="text-sm font-semibold text-white">
+                      {demo.businessName}
+                    </p>
+                    <p className="text-xs text-emerald-400">Assistant online</p>
+                  </div>
+                </div>
+
+                <div
+                  key={`${selectedDemo}-${selectedQuestion}`}
+                  aria-live="polite"
+                  className="flex flex-1 flex-col gap-5 p-5 transition-all duration-300 sm:p-6"
+                >
+                  <div className="max-w-[85%] self-end">
+                    <p className="mb-1.5 text-right text-xs font-medium text-slate-500">
+                      You
+                    </p>
+                    <p className="rounded-2xl rounded-br-md bg-blue-600 px-4 py-3 text-sm leading-6 text-white shadow-lg shadow-blue-950/20">
+                      {conversation.question}
+                    </p>
+                  </div>
+
+                  <div className="max-w-[88%] self-start">
+                    <p className="mb-1.5 text-xs font-medium text-slate-500">
+                      AI assistant
+                    </p>
+                    <p className="rounded-2xl rounded-bl-md border border-white/10 bg-white/[0.07] px-4 py-3 text-sm leading-6 text-slate-200">
+                      {conversation.answer}
+                    </p>
+                  </div>
+
+                  {chatMessages.map((chatMessage, index) => (
+                    <div
+                      key={`${chatMessage.role}-${index}`}
+                      className={`max-w-[88%] ${
+                        chatMessage.role === "user" ? "self-end" : "self-start"
+                      }`}
+                    >
+                      <p
+                        className={`mb-1.5 text-xs font-medium text-slate-500 ${
+                          chatMessage.role === "user" ? "text-right" : ""
+                        }`}
+                      >
+                        {chatMessage.role === "user" ? "You" : "AI assistant"}
+                      </p>
+                      <p
+                        className={`rounded-2xl px-4 py-3 text-sm leading-6 ${
+                          chatMessage.role === "user"
+                            ? "rounded-br-md bg-blue-600 text-white shadow-lg shadow-blue-950/20"
+                            : "rounded-bl-md border border-white/10 bg-white/[0.07] text-slate-200"
+                        }`}
+                      >
+                        {chatMessage.text}
+                      </p>
+                    </div>
+                  ))}
+
+                  {isReplying && (
+                    <div
+                      role="status"
+                      className="max-w-[88%] self-start text-sm text-slate-400"
+                    >
+                      <span className="inline-flex items-center gap-2 rounded-2xl rounded-bl-md border border-white/10 bg-white/[0.07] px-4 py-3">
+                        <span
+                          aria-hidden="true"
+                          className="h-2 w-2 animate-pulse rounded-full bg-blue-400"
+                        />
+                        Assistant is typing…
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                <form
+                  onSubmit={sendMessage}
+                  className="border-t border-white/10 p-4 sm:px-6"
+                >
+                  <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.04] p-2 pl-4 transition focus-within:border-blue-400/40 focus-within:ring-2 focus-within:ring-blue-400/10">
+                    <label htmlFor="demo-message" className="sr-only">
+                      Message the demo assistant
+                    </label>
+                    <input
+                      id="demo-message"
+                      type="text"
+                      value={message}
+                      onChange={(event) => setMessage(event.target.value)}
+                      placeholder="Type your message..."
+                      autoComplete="off"
+                      className="min-w-0 flex-1 bg-transparent text-sm text-white outline-none placeholder:text-slate-500"
+                    />
+                    <button
+                      type="submit"
+                      aria-label="Send message"
+                      disabled={isReplying || !message.trim()}
+                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-600 text-white transition hover:bg-blue-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-500"
+                    >
+                      <span aria-hidden="true">&rarr;</span>
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
           </div>
         </div>
       </section>
