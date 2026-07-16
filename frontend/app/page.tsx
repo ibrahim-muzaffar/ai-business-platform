@@ -68,6 +68,67 @@ export default function Home() {
           </p>
         </div>
       </section>
+
+      <section
+        id="services"
+        className="relative z-10 scroll-mt-8 px-5 py-20 sm:px-8 sm:py-28"
+      >
+        <div className="mx-auto max-w-6xl">
+          <div className="mx-auto max-w-2xl text-center">
+            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-blue-400">
+              What we do
+            </p>
+            <h2 className="mt-3 text-3xl font-bold tracking-tight text-white sm:text-4xl lg:text-5xl">
+              Our Services
+            </h2>
+            <p className="mt-5 text-base leading-7 text-slate-300 sm:text-lg">
+              We help local businesses save time and generate more customers
+              using AI and automation.
+            </p>
+          </div>
+
+          <div className="mt-12 grid gap-5 md:grid-cols-3 lg:gap-6">
+            <article className="group rounded-2xl border border-white/10 bg-white/[0.04] p-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-sm transition duration-300 hover:-translate-y-1 hover:border-blue-400/30 hover:bg-white/[0.07] hover:shadow-xl hover:shadow-blue-950/20 sm:p-8">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-blue-400/20 bg-blue-400/10 text-2xl transition duration-300 group-hover:scale-105 group-hover:border-blue-400/30">
+                🤖
+              </div>
+              <h3 className="mt-6 text-xl font-semibold tracking-tight text-white">
+                AI Customer Assistants
+              </h3>
+              <p className="mt-3 leading-7 text-slate-400">
+                AI assistants trained on your business to answer customer
+                questions 24/7.
+              </p>
+            </article>
+
+            <article className="group rounded-2xl border border-white/10 bg-white/[0.04] p-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-sm transition duration-300 hover:-translate-y-1 hover:border-blue-400/30 hover:bg-white/[0.07] hover:shadow-xl hover:shadow-blue-950/20 sm:p-8">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-blue-400/20 bg-blue-400/10 text-2xl transition duration-300 group-hover:scale-105 group-hover:border-blue-400/30">
+                🌐
+              </div>
+              <h3 className="mt-6 text-xl font-semibold tracking-tight text-white">
+                Modern Websites
+              </h3>
+              <p className="mt-3 leading-7 text-slate-400">
+                Fast, responsive and SEO-optimised websites designed to convert
+                visitors into customers.
+              </p>
+            </article>
+
+            <article className="group rounded-2xl border border-white/10 bg-white/[0.04] p-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-sm transition duration-300 hover:-translate-y-1 hover:border-blue-400/30 hover:bg-white/[0.07] hover:shadow-xl hover:shadow-blue-950/20 sm:p-8">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-blue-400/20 bg-blue-400/10 text-2xl transition duration-300 group-hover:scale-105 group-hover:border-blue-400/30">
+                ⚡
+              </div>
+              <h3 className="mt-6 text-xl font-semibold tracking-tight text-white">
+                Business Automation
+              </h3>
+              <p className="mt-3 leading-7 text-slate-400">
+                Automate bookings, enquiries, reviews and repetitive admin
+                tasks.
+              </p>
+            </article>
+          </div>
+        </div>
+      </section>
     </main>
   );
 }
