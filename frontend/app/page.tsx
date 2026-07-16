@@ -8,8 +8,6 @@ const demos = {
     icon: "✂️",
     businessName: "Northside Barbers",
     welcome: "Hi! I’m the Northside Barbers assistant. How can I help today?",
-    fakeResponse:
-      "Thanks for your message! One of our barbers can help with that. Would you like to make a booking?",
     conversations: [
       {
         question: "Do you take walk-ins?",
@@ -31,8 +29,6 @@ const demos = {
     icon: "🍕",
     businessName: "Bella Pizza Kitchen",
     welcome: "Welcome to Bella Pizza Kitchen. What can I help you with?",
-    fakeResponse:
-      "Thanks for asking! Our restaurant team can help with that. Would you like to place an order or reserve a table?",
     conversations: [
       {
         question: "Do you offer delivery?",
@@ -53,8 +49,6 @@ const demos = {
     icon: "🦷",
     businessName: "Riverside Dental Care",
     welcome: "Hello! I’m here to help with questions about Riverside Dental Care.",
-    fakeResponse:
-      "Thanks for getting in touch. Our reception team can help with that and arrange an appointment if needed.",
     conversations: [
       {
         question: "Are you accepting new patients?",
@@ -75,8 +69,6 @@ const demos = {
     icon: "🏋️",
     businessName: "Forge Fitness",
     welcome: "Hi! Welcome to Forge Fitness. How can I help you get started?",
-    fakeResponse:
-      "Great question! Our fitness team can help with that. Would you like to arrange a visit to the gym?",
     conversations: [
       {
         question: "Can I try the gym before joining?",
@@ -106,21 +98,19 @@ export default function Home() {
   const [message, setMessage] = useState("");
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [isReplying, setIsReplying] = useState(false);
-  const replyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const activeRequest = useRef<AbortController | null>(null);
   const demo = demos[selectedDemo];
   const conversation = demo.conversations[selectedQuestion];
 
   useEffect(() => {
     return () => {
-      if (replyTimer.current) clearTimeout(replyTimer.current);
+      activeRequest.current?.abort();
     };
   }, []);
 
   function cancelPendingReply() {
-    if (replyTimer.current) {
-      clearTimeout(replyTimer.current);
-      replyTimer.current = null;
-    }
+    activeRequest.current?.abort();
+    activeRequest.current = null;
     setIsReplying(false);
   }
 
@@ -138,13 +128,12 @@ export default function Home() {
     setChatMessages([]);
   }
 
-  function sendMessage(event: FormEvent<HTMLFormElement>) {
+  async function sendMessage(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     const trimmedMessage = message.trim();
     if (!trimmedMessage || isReplying) return;
 
-    const response = demo.fakeResponse;
     setChatMessages((current) => [
       ...current,
       { role: "user", text: trimmedMessage },
@@ -152,14 +141,47 @@ export default function Home() {
     setMessage("");
     setIsReplying(true);
 
-    replyTimer.current = setTimeout(() => {
+    const controller = new AbortController();
+    activeRequest.current = controller;
+
+    try {
+      const response = await fetch("http://localhost:5000/api/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          message: trimmedMessage,
+          businessType: selectedDemo,
+        }),
+        signal: controller.signal,
+      });
+      const data: { reply?: string; message?: string } = await response.json();
+
+      if (!response.ok || !data.reply) {
+        throw new Error(data.message || "The backend returned an invalid response.");
+      }
+
       setChatMessages((current) => [
         ...current,
-        { role: "assistant", text: response },
+        { role: "assistant", text: data.reply as string },
       ]);
-      setIsReplying(false);
-      replyTimer.current = null;
-    }, 900);
+    } catch (error) {
+      if (error instanceof Error && error.name === "AbortError") return;
+
+      setChatMessages((current) => [
+        ...current,
+        {
+          role: "assistant",
+          text: "Sorry, I couldn’t reach the demo assistant. Please make sure the backend is running and try again.",
+        },
+      ]);
+    } finally {
+      if (activeRequest.current === controller) {
+        activeRequest.current = null;
+        setIsReplying(false);
+      }
+    }
   }
 
   return (

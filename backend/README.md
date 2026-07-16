@@ -28,10 +28,12 @@ For a standard start without file watching:
 npm start
 ```
 
-The API runs at `http://localhost:5000`. Test the current endpoint with:
+The API runs at `http://localhost:5000`. Send a chat message with:
 
 ```bash
-curl http://localhost:5000/api/chat
+curl -X POST http://localhost:5000/api/chat \
+  -H "Content-Type: application/json" \
+  -d '{"message":"Hello","businessType":"barber"}'
 ```
 
 It returns:
@@ -39,7 +41,7 @@ It returns:
 ```json
 {
   "status": "success",
-  "message": "Backend connected successfully"
+  "reply": "The backend received your message for the barber demo."
 }
 ```
 
