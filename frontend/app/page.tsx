@@ -129,6 +129,77 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      <section className="relative z-10 px-5 py-20 sm:px-8 sm:py-28">
+        <div
+          aria-hidden="true"
+          className="absolute left-1/2 top-1/2 -z-10 h-72 w-72 -translate-x-1/2 -translate-y-1/2 rounded-full bg-blue-600/10 blur-3xl"
+        />
+
+        <div className="mx-auto max-w-6xl">
+          <div className="mx-auto max-w-2xl text-center">
+            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-blue-400">
+              Why choose us
+            </p>
+            <h2 className="mt-3 text-3xl font-bold tracking-tight text-white sm:text-4xl lg:text-5xl">
+              Why Work With Us
+            </h2>
+            <p className="mt-5 text-base leading-7 text-slate-300 sm:text-lg">
+              Straightforward solutions shaped around your goals, with support
+              that continues beyond launch.
+            </p>
+          </div>
+
+          <div className="mt-12 grid gap-5 md:grid-cols-3 lg:gap-6">
+            <article className="rounded-2xl border border-white/10 bg-slate-900/60 p-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] backdrop-blur-sm sm:p-8">
+              <div
+                aria-hidden="true"
+                className="flex h-10 w-10 items-center justify-center rounded-full border border-blue-400/25 bg-blue-400/10 text-sm font-bold text-blue-300"
+              >
+                01
+              </div>
+              <h3 className="mt-6 text-xl font-semibold tracking-tight text-white">
+                Built Around Your Business
+              </h3>
+              <p className="mt-3 leading-7 text-slate-400">
+                We tailor each website, assistant and automation to the way your
+                business actually works.
+              </p>
+            </article>
+
+            <article className="rounded-2xl border border-white/10 bg-slate-900/60 p-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] backdrop-blur-sm sm:p-8">
+              <div
+                aria-hidden="true"
+                className="flex h-10 w-10 items-center justify-center rounded-full border border-blue-400/25 bg-blue-400/10 text-sm font-bold text-blue-300"
+              >
+                02
+              </div>
+              <h3 className="mt-6 text-xl font-semibold tracking-tight text-white">
+                Practical, Not Gimmicky
+              </h3>
+              <p className="mt-3 leading-7 text-slate-400">
+                Every feature is designed to save time, improve customer service
+                or help capture more enquiries.
+              </p>
+            </article>
+
+            <article className="rounded-2xl border border-white/10 bg-slate-900/60 p-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] backdrop-blur-sm sm:p-8">
+              <div
+                aria-hidden="true"
+                className="flex h-10 w-10 items-center justify-center rounded-full border border-blue-400/25 bg-blue-400/10 text-sm font-bold text-blue-300"
+              >
+                03
+              </div>
+              <h3 className="mt-6 text-xl font-semibold tracking-tight text-white">
+                Ongoing Support
+              </h3>
+              <p className="mt-3 leading-7 text-slate-400">
+                We help with setup, improvements and maintenance after launch.
+              </p>
+            </article>
+          </div>
+        </div>
+      </section>
     </main>
   );
 }
