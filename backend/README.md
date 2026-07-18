@@ -8,10 +8,14 @@ developed independently.
 
 - `server.js` configures Express, JSON parsing, CORS, route mounting, and port
   5000.
-- `routes/chat.js` contains the chat API route. Keeping feature routes in their
-  own modules makes it straightforward to add validation, controllers, and an
-  AI service layer later.
+- `routes/chat.js` validates chat requests and uses OpenAI's Responses API to
+  generate a stateless demo receptionist reply.
 - `package.json` defines the backend dependencies and run scripts.
+
+## Environment variables
+
+Create a local `.env` file containing `OPENAI_API_KEY` and `OPENAI_MODEL`.
+The file is ignored by Git and must never be committed.
 
 ## Run locally
 
@@ -36,13 +40,13 @@ curl -X POST http://localhost:5000/api/chat \
   -d '{"message":"Hello","businessType":"barber"}'
 ```
 
-It returns:
+It returns a generated reply in this shape:
 
 ```json
 {
   "status": "success",
-  "reply": "The backend received your message for the barber demo."
+  "reply": "AI response here"
 }
 ```
 
-OpenAI and database integrations are intentionally not included at this stage.
+Chat history and database storage are intentionally not included at this stage.
