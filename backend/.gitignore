@@ -3,3 +3,6 @@
 
 # Installed dependencies
 node_modules/
+
+# Runtime lead records may contain personal information
+data/leads.json

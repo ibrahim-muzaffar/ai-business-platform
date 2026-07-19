@@ -1,6 +1,14 @@
 const express = require("express");
 const OpenAI = require("openai");
 const { getBusinessData } = require("../repositories/businessRepository");
+const { saveLead } = require("../repositories/leadRepository");
+const {
+  analyseChatMessage,
+} = require("../services/chatAnalysisService");
+const {
+  buildMissingFieldsReply,
+  prepareLead,
+} = require("../services/leadService");
 
 const router = express.Router();
 const supportedBusinessTypes = new Set([
@@ -42,34 +50,62 @@ router.post("/", async (request, response) => {
 
   try {
     const businessData = await getBusinessData(selectedBusiness);
-    const verifiedBusinessContext = businessData
-      ? JSON.stringify(businessData)
-      : "No verified business data is available for this demo.";
-
-    const aiResponse = await client.responses.create({
+    const analysis = await analyseChatMessage({
+      client,
       model: process.env.OPENAI_MODEL,
-      instructions: [
-        `You are a concise demo receptionist for a ${selectedBusiness} business.`,
-        "Answer business-specific questions using only the verified business data below.",
-        "Never invent prices or opening hours.",
-        "If the requested information is missing, politely say you do not know instead of guessing.",
-        "Do not claim confirmed appointment availability or bookings.",
-        `Verified business data: ${verifiedBusinessContext}`,
-      ].join("\n"),
-      input: message.trim(),
+      message: message.trim(),
+      businessType: selectedBusiness,
+      businessData,
     });
 
-    if (!aiResponse.output_text) {
-      throw new Error("OpenAI returned an empty text response.");
+    if (analysis.intent === "general") {
+      return response.json({
+        status: "success",
+        reply: analysis.reply,
+      });
+    }
+
+    // The backend validates the extracted fields independently instead of
+    // trusting the model's missingFields array as the source of truth.
+    const validation = prepareLead(analysis.leadFields, {
+      businessType: selectedBusiness,
+    });
+
+    if (validation.missingFields.length) {
+      return response.json({
+        status: "success",
+        reply: buildMissingFieldsReply(validation.missingFields),
+      });
+    }
+
+    if (validation.invalidFields.length) {
+      const invalidField = validation.invalidFields[0];
+      const fieldDescription =
+        invalidField === "email" ? "a valid email address" : "a valid phone number";
+
+      return response.json({
+        status: "success",
+        reply: `Please resend your enquiry with ${fieldDescription}.`,
+      });
+    }
+
+    const saveResult = await saveLead(validation.lead);
+
+    if (!saveResult.created) {
+      return response.json({
+        status: "success",
+        reply:
+          "We already recorded this enquiry recently. The business will contact you to confirm availability; no appointment has been confirmed.",
+      });
     }
 
     return response.json({
       status: "success",
-      reply: aiResponse.output_text,
+      reply: `Thanks, ${validation.lead.name}. Your enquiry has been recorded and the business will contact you to confirm availability. This is not a confirmed appointment.`,
     });
   } catch (error) {
     // Log diagnostic metadata only; never log request headers or credentials.
-    console.error("OpenAI API request failed", {
+    console.error("Chat request failed", {
       name: error?.name,
       status: error?.status,
       code: error?.code,
