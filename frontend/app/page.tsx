@@ -91,6 +91,11 @@ type ChatMessage = {
   role: "user" | "assistant";
   text: string;
 };
+type ChatResponse = {
+  reply?: string;
+  message?: string;
+  sessionId: string | null;
+};
 
 export default function Home() {
   const [selectedDemo, setSelectedDemo] = useState<DemoType>("barber");
@@ -160,17 +165,20 @@ export default function Home() {
         }),
         signal: controller.signal,
       });
-      const data: { reply?: string; message?: string; sessionId?: string } =
-        await response.json();
+      const data: ChatResponse = await response.json();
 
-      if (!response.ok || !data.reply || !data.sessionId) {
+      if (!response.ok || typeof data.reply !== "string" || !data.reply.trim()) {
         throw new Error(data.message || "The backend returned an invalid response.");
       }
 
-      setSessionId(data.sessionId);
+      const reply = data.reply;
+
+      if (typeof data.sessionId === "string" && data.sessionId.trim()) {
+        setSessionId(data.sessionId);
+      }
       setChatMessages((current) => [
         ...current,
-        { role: "assistant", text: data.reply as string },
+        { role: "assistant", text: reply },
       ]);
     } catch (error) {
       if (error instanceof Error && error.name === "AbortError") return;

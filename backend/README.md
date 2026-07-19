@@ -12,7 +12,8 @@ developed independently.
   and uses OpenAI's Responses API to generate demo receptionist replies.
 - `data/business.json` contains the current verified barber-shop information.
 - `repositories/businessRepository.js` provides the storage boundary used by
-  the chat route. Its JSON lookup can later be replaced with a database query
+  the chat route and is the single source of truth for demos with verified live
+  configuration. Its JSON lookup can later be replaced with a database query
   without changing the route.
 - `services/chatAnalysisService.js` requests a strict structured response from
   OpenAI containing intent, explicitly supplied lead fields, missing fields,
@@ -68,6 +69,20 @@ It returns a generated reply in this shape:
 ```
 
 Send the returned `sessionId` with later messages in the same conversation.
+
+## Configured-business safety rule
+
+Only business types registered in `repositories/businessRepository.js` may use
+live AI, verified business data, conversation sessions, or lead capture. The
+barber is currently the only configured demo. Other frontend demos keep their
+preloaded examples, but live messages receive an honest unavailable response
+with a null session ID.
+
+The chat route applies this guard before checking the OpenAI client, loading
+business data, creating or retrieving a session, analysing a message, or saving
+a lead. A future business can be enabled by adding its verified configuration
+to the repository registry; route logic does not need an industry-specific
+condition.
 
 ## Lead capture
 
