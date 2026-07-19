@@ -79,7 +79,7 @@ function readableList(items) {
 
 function buildMissingFieldsReply(missingFields) {
   const labels = missingFields.map((field) => FIELD_LABELS[field]);
-  return `To record your enquiry, please include your ${readableList(labels)} in one message.`;
+  return `To record your enquiry, please provide your ${readableList(labels)}.`;
 }
 
 module.exports = {

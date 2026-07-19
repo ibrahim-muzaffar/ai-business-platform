@@ -97,6 +97,7 @@ export default function Home() {
   const [selectedQuestion, setSelectedQuestion] = useState(0);
   const [message, setMessage] = useState("");
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [sessionId, setSessionId] = useState<string | null>(null);
   const [isReplying, setIsReplying] = useState(false);
   const activeRequest = useRef<AbortController | null>(null);
   const demo = demos[selectedDemo];
@@ -119,6 +120,7 @@ export default function Home() {
     setSelectedDemo(demoType);
     setSelectedQuestion(0);
     setChatMessages([]);
+    setSessionId(null);
     setMessage("");
   }
 
@@ -126,6 +128,7 @@ export default function Home() {
     cancelPendingReply();
     setSelectedQuestion(index);
     setChatMessages([]);
+    setSessionId(null);
   }
 
   async function sendMessage(event: FormEvent<HTMLFormElement>) {
@@ -153,15 +156,18 @@ export default function Home() {
         body: JSON.stringify({
           message: trimmedMessage,
           businessType: selectedDemo,
+          ...(sessionId ? { sessionId } : {}),
         }),
         signal: controller.signal,
       });
-      const data: { reply?: string; message?: string } = await response.json();
+      const data: { reply?: string; message?: string; sessionId?: string } =
+        await response.json();
 
-      if (!response.ok || !data.reply) {
+      if (!response.ok || !data.reply || !data.sessionId) {
         throw new Error(data.message || "The backend returned an invalid response.");
       }
 
+      setSessionId(data.sessionId);
       setChatMessages((current) => [
         ...current,
         { role: "assistant", text: data.reply as string },

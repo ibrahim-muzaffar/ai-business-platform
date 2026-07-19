@@ -17,7 +17,7 @@ test("prepareLead reports every missing required field", () => {
   assert.equal(result.lead, null);
   assert.equal(
     buildMissingFieldsReply(result.missingFields),
-    "To record your enquiry, please include your phone number, preferred date and preferred time in one message.",
+    "To record your enquiry, please provide your phone number, preferred date and preferred time.",
   );
 });
 

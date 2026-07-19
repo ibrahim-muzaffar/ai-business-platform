@@ -72,6 +72,8 @@ async function analyseChatMessage({
   message,
   businessType,
   businessData,
+  collectedLeadFields = {},
+  recentMessages = [],
 }) {
   const verifiedBusinessContext = businessData
     ? JSON.stringify(businessData)
@@ -82,13 +84,21 @@ async function analyseChatMessage({
     instructions: [
       `You are a concise demo receptionist for a ${businessType} business.`,
       "Classify booking or service enquiries as lead intent; classify ordinary business questions as general intent.",
-      "For lead intent, extract only customer details explicitly present in this single message. Use null for anything not supplied and list every missing required field.",
+      "For lead intent, extract only customer details explicitly supplied in the latest message. Use null for anything not supplied or uncertain in that message.",
+      "Use the recent messages to understand whether the latest message continues an active enquiry, but do not copy prior details into leadFields because the backend already stores them.",
+      `Lead fields already collected by the backend: ${JSON.stringify(collectedLeadFields)}`,
       "Never invent customer details, prices, opening hours, availability or bookings.",
       "For general intent, answer business-specific questions using only the verified business data below. If information is missing, politely say you do not know.",
       "Never claim an appointment is confirmed. Leads are enquiries only.",
       `Verified business data: ${verifiedBusinessContext}`,
     ].join("\n"),
-    input: message,
+    input: [
+      ...recentMessages.map((recentMessage) => ({
+        role: recentMessage.role,
+        content: recentMessage.text,
+      })),
+      { role: "user", content: message },
+    ],
     text: {
       format: {
         type: "json_schema",
