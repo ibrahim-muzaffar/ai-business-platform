@@ -10,6 +10,10 @@ developed independently.
   5000.
 - `routes/chat.js` validates chat requests and uses OpenAI's Responses API to
   generate a stateless demo receptionist reply.
+- `data/business.json` contains the current verified barber-shop information.
+- `repositories/businessRepository.js` provides the storage boundary used by
+  the chat route. Its JSON lookup can later be replaced with a database query
+  without changing the route.
 - `package.json` defines the backend dependencies and run scripts.
 
 ## Environment variables

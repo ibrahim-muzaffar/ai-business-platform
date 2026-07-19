@@ -1,5 +1,6 @@
 const express = require("express");
 const OpenAI = require("openai");
+const { getBusinessData } = require("../repositories/businessRepository");
 
 const router = express.Router();
 const supportedBusinessTypes = new Set([
@@ -40,9 +41,21 @@ router.post("/", async (request, response) => {
       : "local business";
 
   try {
+    const businessData = await getBusinessData(selectedBusiness);
+    const verifiedBusinessContext = businessData
+      ? JSON.stringify(businessData)
+      : "No verified business data is available for this demo.";
+
     const aiResponse = await client.responses.create({
       model: process.env.OPENAI_MODEL,
-      instructions: `You are a concise demo receptionist for a ${selectedBusiness} business. Answer helpfully and briefly. Do not invent or claim confirmed prices, appointment availability, or bookings.`,
+      instructions: [
+        `You are a concise demo receptionist for a ${selectedBusiness} business.`,
+        "Answer business-specific questions using only the verified business data below.",
+        "Never invent prices or opening hours.",
+        "If the requested information is missing, politely say you do not know instead of guessing.",
+        "Do not claim confirmed appointment availability or bookings.",
+        `Verified business data: ${verifiedBusinessContext}`,
+      ].join("\n"),
       input: message.trim(),
     });
 
