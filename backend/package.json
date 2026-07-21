@@ -7,7 +7,15 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
-    "test": "node --test"
+    "test": "node --test",
+    "db:check": "node scripts/checkDatabaseConnection.js development",
+    "db:migrate": "knex migrate:latest --knexfile knexfile.js --env development",
+    "db:rollback": "knex migrate:rollback --knexfile knexfile.js --env development",
+    "db:seed": "knex seed:run --knexfile knexfile.js --env development",
+    "db:test:check": "node scripts/checkDatabaseConnection.js test",
+    "db:test:migrate": "knex migrate:latest --knexfile knexfile.js --env test",
+    "db:test:rollback": "knex migrate:rollback --knexfile knexfile.js --env test",
+    "db:test:seed": "knex seed:run --knexfile knexfile.js --env test"
   },
   "engines": {
     "node": ">=18"
@@ -16,6 +24,8 @@
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
-    "openai": "^6.48.0"
+    "knex": "^3.3.0",
+    "openai": "^6.48.0",
+    "pg": "^8.22.0"
   }
 }

@@ -28,12 +28,23 @@ developed independently.
   expires inactive sessions.
 - `data/leads.json` is the local runtime lead store and is ignored by Git
   because it can contain personal information.
+- `db/config.js` defines environment-aware Knex settings for the development
+  and test databases.
+- `db/connection.js` creates reusable Knex connections and destroys them
+  cleanly when database work finishes.
+- `knexfile.js` exposes CommonJS development and test configuration to the
+  Knex CLI, with separate migration and seed directories.
+- `scripts/checkDatabaseConnection.js` runs a safe connectivity check without
+  printing database credentials.
 - `package.json` defines the backend dependencies and run scripts.
 
 ## Environment variables
 
-Create a local `.env` file containing `OPENAI_API_KEY` and `OPENAI_MODEL`.
-The file is ignored by Git and must never be committed.
+Use `.env.example` as the safe configuration template. A local `.env` may
+contain `OPENAI_API_KEY`, `OPENAI_MODEL`, `DATABASE_URL`, and
+`TEST_DATABASE_URL`. The local `.env` is ignored by Git and must never be
+committed. Never reuse the Docker development credentials in staging or
+production.
 
 ## Run locally
 
@@ -69,6 +80,83 @@ It returns a generated reply in this shape:
 ```
 
 Send the returned `sessionId` with later messages in the same conversation.
+
+## Local PostgreSQL development environment
+
+### Prerequisites
+
+- Docker Desktop with Docker Compose support
+- Node.js 18 or newer
+- Backend dependencies installed with `npm install`
+
+The top-level `compose.yaml` runs one official PostgreSQL 18 container. It
+creates `ai_business_dev` through the image configuration and creates
+`ai_business_test` through a small initialization script. Both databases use
+the same local-only PostgreSQL service and named Docker volume. No application
+tables are created by this setup.
+
+From the project root, start PostgreSQL in the background:
+
+```bash
+docker compose up -d postgres
+```
+
+View container and health status:
+
+```bash
+docker compose ps
+```
+
+Stop PostgreSQL without deleting its data:
+
+```bash
+docker compose stop postgres
+```
+
+Set `DATABASE_URL` and `TEST_DATABASE_URL` in the local backend `.env` using
+the safe local values shown in `.env.example`. Do not overwrite or expose an
+existing OpenAI key. From `backend`, verify each connection with:
+
+```bash
+npm run db:check
+npm run db:test:check
+```
+
+Development migration and seed commands are:
+
+```bash
+npm run db:migrate
+npm run db:rollback
+npm run db:seed
+```
+
+Equivalent test-database commands are:
+
+```bash
+npm run db:test:migrate
+npm run db:test:rollback
+npm run db:test:seed
+```
+
+The migration and seed directories are intentionally empty in this foundation
+step. These commands are ready for later Phase 2 work but currently create no
+application schema or barber seed data.
+
+To remove the container and reset the local PostgreSQL volume, run from the
+project root:
+
+```bash
+docker compose down --volumes
+```
+
+**Warning:** Resetting the volume permanently deletes all data in both local
+databases. The initialization scripts run again only when PostgreSQL starts
+with an empty volume.
+
+PostgreSQL is not yet part of application runtime behavior. The barber business
+repository still reads JSON, leads still use JSON-file storage, and conversation
+sessions still use process-local memory. Repository migration happens in a
+later Phase 2 step.
 
 ## Configured-business safety rule
 
