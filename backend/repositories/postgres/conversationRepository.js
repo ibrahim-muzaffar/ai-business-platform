@@ -34,6 +34,30 @@ function createConversationRepository(db) {
     return mapConversation(row);
   }
 
+  async function updateLastMessageAtForBusiness(
+    businessId,
+    conversationId,
+    lastMessageAt,
+  ) {
+    const timestampExpression = db.raw(
+      `CASE
+        WHEN ?::timestamptz < "started_at" THEN ?::timestamptz
+        WHEN "last_message_at" IS NULL
+          OR ?::timestamptz > "last_message_at" THEN ?::timestamptz
+        ELSE "last_message_at"
+      END`,
+      [lastMessageAt, lastMessageAt, lastMessageAt, lastMessageAt],
+    );
+    const [row] = await db("conversations")
+      .where({ business_id: businessId, id: conversationId })
+      .update({
+        last_message_at: timestampExpression,
+        updated_at: db.raw("clock_timestamp()"),
+      })
+      .returning("*");
+    return mapConversation(row);
+  }
+
   function orderedBusinessQuery(businessId) {
     return db("conversations")
       .where({ business_id: businessId })
@@ -64,6 +88,7 @@ function createConversationRepository(db) {
     listByBusinessId,
     listByCustomerForBusiness,
     listByStatusForBusiness,
+    updateLastMessageAtForBusiness,
   };
 }
 

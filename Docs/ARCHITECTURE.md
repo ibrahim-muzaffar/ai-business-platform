@@ -262,6 +262,12 @@ Examples:
 
 Routes and modules should depend on repository contracts, not concrete storage technology.
 
+#### Transaction boundaries
+
+Repositories accept an injected database connection or transaction and do not start transactions themselves. Application and domain services own transaction boundaries when one logical action modifies multiple records; routes must not contain raw transaction or database logic.
+
+Creating a message and updating its conversation activity timestamp is one atomic action that commits or rolls back as a unit. Runtime JSON and in-memory providers remain active until the controlled Phase 2 PostgreSQL cutover.
+
 ### 5.7 Infrastructure adapters
 
 Infrastructure adapters implement external dependencies.

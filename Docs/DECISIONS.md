@@ -294,6 +294,20 @@ Each decision contains:
 
 ---
 
+## ADR-021 — Application services own multi-record transaction boundaries
+
+**Status:** Accepted
+
+**Context:** Actions that write multiple related records must not leave partial state or report success before all writes commit.
+
+**Decision:** Application and domain services own transaction boundaries. Repositories remain transaction-agnostic and accept an injected Knex connection or transaction. Multi-record actions commit or roll back as one unit. Repository update methods explicitly maintain `updated_at` rather than relying on an unspecified database trigger.
+
+**Rationale:** This preserves atomicity, makes repositories reusable and independently testable, prevents partial-success claims, and keeps responsibilities clear between routes, services, and infrastructure.
+
+**Consequences:** Repositories accept Knex or `trx`, while routes do not start transactions. Message creation and conversation activity updates are atomic. Future repository update methods must explicitly maintain `updated_at` unless a later ADR introduces a database trigger.
+
+---
+
 ## Change record template
 
 Use this section only when an accepted roadmap or architectural decision changes.
