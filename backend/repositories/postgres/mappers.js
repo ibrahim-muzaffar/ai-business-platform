@@ -64,8 +64,45 @@ function mapPolicy(row) {
   };
 }
 
+function mapCustomer(row) {
+  if (!row) return null;
+
+  return {
+    id: row.id,
+    businessId: row.business_id,
+    name: row.name,
+    phone: row.phone,
+    email: row.email,
+    preferences: row.preferences,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function mapLead(row) {
+  if (!row) return null;
+
+  return {
+    id: row.id,
+    businessId: row.business_id,
+    customerId: row.customer_id,
+    serviceId: row.service_id,
+    conversationId: row.conversation_id,
+    sourceChannel: row.source_channel,
+    enquiryType: row.enquiry_type,
+    status: row.status,
+    requestedService: row.requested_service,
+    requestedDate: row.requested_date,
+    requestedTime: row.requested_time,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
 module.exports = {
   mapBusiness,
+  mapCustomer,
+  mapLead,
   mapOpeningHours,
   mapPolicy,
   mapService,
