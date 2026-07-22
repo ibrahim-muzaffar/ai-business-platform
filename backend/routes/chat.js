@@ -1,6 +1,6 @@
 const express = require("express");
 const OpenAI = require("openai");
-const businessRepository = require("../repositories/businessRepository");
+const businessRepository = require("../repositories/postgres/runtimeBusinessRepository");
 const leadRepository = require("../repositories/leadRepository");
 const conversationSessionRepository = require("../repositories/conversationSessionRepository");
 const chatAnalysisService = require("../services/chatAnalysisService");
@@ -62,12 +62,15 @@ function createChatRouter({
       });
     }
 
-    const session =
-      sessions.getSession(sessionId, selectedBusiness) ??
-      sessions.createSession(selectedBusiness);
-
     try {
       const businessData = await businesses.getBusinessData(selectedBusiness);
+      if (!businessData) {
+        throw new Error("Configured business data is unavailable.");
+      }
+
+      const session =
+        sessions.getSession(sessionId, selectedBusiness) ??
+        sessions.createSession(selectedBusiness);
       const recentMessages = [...session.messages];
       sessions.addMessage(session.id, { role: "user", text: message.trim() });
 

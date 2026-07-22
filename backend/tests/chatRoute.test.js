@@ -145,3 +145,96 @@ test("configured barber requests still reach grounded analysis and sessions", as
   });
   assert.deepEqual(calls, { analysis: 1, createSession: 1 });
 });
+
+test("configured business data is loaded before a session is accessed", async () => {
+  const calls = { analysis: 0, createSession: 0, getSession: 0, saveLead: 0 };
+
+  const router = chatRouter.createChatRouter({
+    openAIClient: { responses: {} },
+    businesses: {
+      normaliseBusinessType: (value) => value.trim().toLowerCase(),
+      isBusinessConfigured: () => true,
+      getBusinessData: async () => null,
+    },
+    sessions: {
+      getSession: () => {
+        calls.getSession += 1;
+      },
+      createSession: () => {
+        calls.createSession += 1;
+      },
+    },
+    analysis: {
+      analyseChatMessage: async () => {
+        calls.analysis += 1;
+      },
+    },
+    leads: {
+      saveLead: async () => {
+        calls.saveLead += 1;
+      },
+    },
+  });
+
+  const result = await postChat(router, {
+    message: "What time do you open?",
+    businessType: "barber",
+  });
+
+  assert.equal(result.status, 500);
+  assert.deepEqual(result.body, {
+    status: "error",
+    message: "The AI assistant is temporarily unavailable. Please try again.",
+  });
+  assert.deepEqual(calls, {
+    analysis: 0,
+    createSession: 0,
+    getSession: 0,
+    saveLead: 0,
+  });
+});
+
+test("database failures use the controlled response without exposing details", async () => {
+  const calls = { analysis: 0, createSession: 0, getSession: 0 };
+  const databaseError = new Error("sensitive database diagnostic detail");
+
+  const router = chatRouter.createChatRouter({
+    openAIClient: { responses: {} },
+    businesses: {
+      normaliseBusinessType: (value) => value.trim().toLowerCase(),
+      isBusinessConfigured: () => true,
+      getBusinessData: async () => {
+        throw databaseError;
+      },
+    },
+    sessions: {
+      getSession: () => {
+        calls.getSession += 1;
+      },
+      createSession: () => {
+        calls.createSession += 1;
+      },
+    },
+    analysis: {
+      analyseChatMessage: async () => {
+        calls.analysis += 1;
+      },
+    },
+  });
+
+  const result = await postChat(router, {
+    message: "What time do you open?",
+    businessType: "barber",
+  });
+
+  assert.equal(result.status, 500);
+  assert.deepEqual(result.body, {
+    status: "error",
+    message: "The AI assistant is temporarily unavailable. Please try again.",
+  });
+  assert.equal(
+    JSON.stringify(result.body).includes("sensitive database diagnostic detail"),
+    false,
+  );
+  assert.deepEqual(calls, { analysis: 0, createSession: 0, getSession: 0 });
+});
