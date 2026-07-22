@@ -10,6 +10,8 @@ const OPTIONAL_COLUMNS = {
   requestedService: "requested_service",
   requestedDate: "requested_date",
   requestedTime: "requested_time",
+  requestedDateText: "requested_date_text",
+  requestedTimeText: "requested_time_text",
 };
 
 function createLeadRepository(db) {
@@ -24,6 +26,8 @@ function createLeadRepository(db) {
       "leads.enquiry_type",
       "leads.status",
       "leads.requested_service",
+      "leads.requested_date_text",
+      "leads.requested_time_text",
       "leads.created_at",
       "leads.updated_at",
       db.raw('"leads"."requested_date"::text AS "requested_date"'),

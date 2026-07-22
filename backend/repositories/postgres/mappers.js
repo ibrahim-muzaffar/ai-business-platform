@@ -94,6 +94,8 @@ function mapLead(row) {
     requestedService: row.requested_service,
     requestedDate: row.requested_date,
     requestedTime: row.requested_time,
+    requestedDateText: row.requested_date_text,
+    requestedTimeText: row.requested_time_text,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };

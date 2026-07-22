@@ -228,6 +228,8 @@ test("PostgreSQL customer and lead repositories map, default and isolate data", 
         requestedService: null,
         requestedDate: null,
         requestedTime: null,
+        requestedDateText: "22 July 2026",
+        requestedTimeText: "2:30 pm",
       });
       generatedIds.push(nullLead.id);
       assert.equal(nullLead.customerId, null);
@@ -236,6 +238,8 @@ test("PostgreSQL customer and lead repositories map, default and isolate data", 
       assert.equal(nullLead.requestedService, null);
       assert.equal(nullLead.requestedDate, null);
       assert.equal(nullLead.requestedTime, null);
+      assert.equal(nullLead.requestedDateText, "22 July 2026");
+      assert.equal(nullLead.requestedTimeText, "2:30 pm");
 
       await trx("leads").insert([
         {
@@ -319,6 +323,16 @@ test("PostgreSQL customer and lead repositories map, default and isolate data", 
       await expectCreateLeadError(
         trx,
         { businessId: IDS.businessA, status: "pending" },
+        "23514",
+      );
+      await expectCreateLeadError(
+        trx,
+        { businessId: IDS.businessA, requestedDateText: "   " },
+        "23514",
+      );
+      await expectCreateLeadError(
+        trx,
+        { businessId: IDS.businessA, requestedTimeText: "  " },
         "23514",
       );
 

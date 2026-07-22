@@ -308,6 +308,20 @@ Each decision contains:
 
 ---
 
+## ADR-022 — Preserve raw requested date and time wording
+
+**Status:** Accepted
+
+**Context:** Customer-supplied date and time wording may be ambiguous and cannot always be safely converted into structured database values during lead capture.
+
+**Decision:** Preserve customer-supplied date and time wording separately from parsed database date and time values. Store the raw text during lead capture, while parsed values may remain null until safe timezone-aware interpretation is available. The system must not guess ambiguous dates or times.
+
+**Rationale:** Retaining the original preference prevents information loss and supports later interpretation using the business timezone without creating false booking details.
+
+**Consequences:** Lead storage supports both raw requested text and parsed structured values. Booking workflows must use timezone-aware interpretation before relying on parsed dates or times.
+
+---
+
 ## Change record template
 
 Use this section only when an accepted roadmap or architectural decision changes.
