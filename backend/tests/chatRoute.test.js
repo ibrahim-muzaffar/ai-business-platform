@@ -116,13 +116,20 @@ test("configured barber requests still reach grounded analysis and sessions", as
         calls.createSession += 1;
         return session;
       },
-      addMessage: (_sessionId, message) => session.messages.push(message),
+      addMessage: async (_sessionId, message) => {
+        session.messages.push(message);
+        return session;
+      },
     },
     analysis: {
       analyseChatMessage: async (input) => {
         calls.analysis += 1;
         assert.equal(input.businessType, "barber");
         assert.equal(input.businessData, verifiedBusiness);
+        assert.deepEqual(input.recentMessages, []);
+        assert.deepEqual(session.messages, [
+          { role: "user", text: "What time do you open?" },
+        ]);
         return {
           intent: "general",
           reply: "Grounded barber reply.",
@@ -144,6 +151,10 @@ test("configured barber requests still reach grounded analysis and sessions", as
     sessionId: "session-barber-1",
   });
   assert.deepEqual(calls, { analysis: 1, createSession: 1 });
+  assert.deepEqual(session.messages, [
+    { role: "user", text: "What time do you open?" },
+    { role: "assistant", text: "Grounded barber reply." },
+  ]);
 });
 
 test("configured business data is loaded before a session is accessed", async () => {
@@ -275,11 +286,20 @@ function createCompleteLeadRouter({ saveLead, markedLeadIds }) {
       sessions: {
         getSession: () => session,
         createSession: () => session,
-        addMessage: (_sessionId, message) => session.messages.push(message),
-        mergeLeadFields: (_sessionId, fields) => {
-          Object.assign(session.leadFields, fields);
+        addMessage: async (_sessionId, message) => {
+          session.messages.push(message);
+          return session;
         },
-        markCompleted: (_sessionId, leadId) => markedLeadIds.push(leadId),
+        mergeLeadFields: async (_sessionId, fields) => {
+          return {
+            ...session,
+            leadFields: { ...session.leadFields, ...fields },
+          };
+        },
+        markCompleted: async (_sessionId, leadId) => {
+          markedLeadIds.push(leadId);
+          return true;
+        },
       },
       analysis: {
         analyseChatMessage: async () => ({
@@ -289,11 +309,14 @@ function createCompleteLeadRouter({ saveLead, markedLeadIds }) {
         }),
       },
       leadValidation: {
-        prepareLead: () => ({
-          invalidFields: [],
-          missingFields: [],
-          lead: preparedLead,
-        }),
+        prepareLead: (leadFields) => {
+          assert.deepEqual(leadFields, { name: "Alex Smith" });
+          return {
+            invalidFields: [],
+            missingFields: [],
+            lead: preparedLead,
+          };
+        },
       },
       leads: { saveLead },
     }),
@@ -320,7 +343,10 @@ test("complete leads use the stored ID and preserve the success reply", async ()
     sessionId: "session-lead-1",
   });
 
-  assert.equal(receivedLead, preparedLead);
+  assert.deepEqual(receivedLead, {
+    ...preparedLead,
+    conversationId: "session-lead-1",
+  });
   assert.deepEqual(markedLeadIds, [storedLead.id]);
   assert.deepEqual(result, {
     status: 200,
@@ -383,4 +409,41 @@ test("lead persistence failures use the controlled response", async () => {
   });
   assert.equal(JSON.stringify(result.body).includes("sensitive PostgreSQL"), false);
   assert.deepEqual(markedLeadIds, []);
+});
+
+test("session persistence failures use the controlled response", async () => {
+  const router = chatRouter.createChatRouter({
+    openAIClient: { responses: {} },
+    businesses: {
+      normaliseBusinessType: (value) => value.trim().toLowerCase(),
+      isBusinessConfigured: () => true,
+      getBusinessData: async () => ({ businessType: "barber" }),
+    },
+    sessions: {
+      getSession: async () => null,
+      createSession: async () => ({
+        id: "session-persistence-error",
+        messages: [],
+        leadFields: {},
+      }),
+      addMessage: async () => {
+        throw new Error("sensitive session database detail");
+      },
+    },
+  });
+
+  const result = await postChat(router, {
+    message: "Hello",
+    businessType: "barber",
+  });
+
+  assert.equal(result.status, 500);
+  assert.deepEqual(result.body, {
+    status: "error",
+    message: "The AI assistant is temporarily unavailable. Please try again.",
+  });
+  assert.equal(
+    JSON.stringify(result.body).includes("sensitive session database detail"),
+    false,
+  );
 });

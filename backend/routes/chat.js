@@ -2,7 +2,7 @@ const express = require("express");
 const OpenAI = require("openai");
 const businessRepository = require("../repositories/postgres/runtimeBusinessRepository");
 const leadRepository = require("../services/leadCaptureService");
-const conversationSessionRepository = require("../repositories/conversationSessionRepository");
+const conversationSessionRepository = require("../services/conversationSessionService");
 const chatAnalysisService = require("../services/chatAnalysisService");
 const leadService = require("../services/leadService");
 
@@ -27,8 +27,15 @@ function createChatRouter({
 } = {}) {
   const router = express.Router();
 
-  function sendSessionReply(response, session, reply) {
-    sessions.addMessage(session.id, { role: "assistant", text: reply });
+  async function sendSessionReply(response, session, reply, businessType) {
+    const updatedSession = await sessions.addMessage(
+      session.id,
+      { role: "assistant", text: reply },
+      businessType,
+    );
+    if (!updatedSession) {
+      throw new Error("Conversation session became unavailable.");
+    }
     return response.json({ status: "success", reply, sessionId: session.id });
   }
 
@@ -68,11 +75,22 @@ function createChatRouter({
         throw new Error("Configured business data is unavailable.");
       }
 
-      const session =
-        sessions.getSession(sessionId, selectedBusiness) ??
-        sessions.createSession(selectedBusiness);
+      let session = await sessions.getSession(sessionId, selectedBusiness);
+      if (!session) {
+        session = await sessions.createSession(selectedBusiness);
+      }
+      if (!session) {
+        throw new Error("Conversation session could not be created.");
+      }
       const recentMessages = [...session.messages];
-      sessions.addMessage(session.id, { role: "user", text: message.trim() });
+      session = await sessions.addMessage(
+        session.id,
+        { role: "user", text: message.trim() },
+        selectedBusiness,
+      );
+      if (!session) {
+        throw new Error("Conversation session became unavailable.");
+      }
 
       const result = await analysis.analyseChatMessage({
         client: openAIClient,
@@ -85,18 +103,31 @@ function createChatRouter({
       });
 
       if (result.intent === "general") {
-        return sendSessionReply(response, session, result.reply);
-      }
-
-      if (session.completed) {
-        return sendSessionReply(
+        return await sendSessionReply(
           response,
           session,
-          "This enquiry has already been recorded. The business will contact you to confirm availability; no appointment has been confirmed.",
+          result.reply,
+          selectedBusiness,
         );
       }
 
-      sessions.mergeLeadFields(session.id, result.leadFields);
+      if (session.completed) {
+        return await sendSessionReply(
+          response,
+          session,
+          "This enquiry has already been recorded. The business will contact you to confirm availability; no appointment has been confirmed.",
+          selectedBusiness,
+        );
+      }
+
+      session = await sessions.mergeLeadFields(
+        session.id,
+        result.leadFields,
+        selectedBusiness,
+      );
+      if (!session) {
+        throw new Error("Conversation session became unavailable.");
+      }
 
       // Validate accumulated state independently instead of trusting the model.
       const validation = leadValidation.prepareLead(session.leadFields, {
@@ -104,10 +135,11 @@ function createChatRouter({
       });
 
       if (validation.missingFields.length) {
-        return sendSessionReply(
+        return await sendSessionReply(
           response,
           session,
           leadValidation.buildMissingFieldsReply(validation.missingFields),
+          selectedBusiness,
         );
       }
 
@@ -118,28 +150,41 @@ function createChatRouter({
             ? "a valid email address"
             : "a valid phone number";
 
-        return sendSessionReply(
+        return await sendSessionReply(
           response,
           session,
           `Please provide ${fieldDescription}.`,
+          selectedBusiness,
         );
       }
 
-      const saveResult = await leads.saveLead(validation.lead);
-      sessions.markCompleted(session.id, saveResult.lead.id);
+      const saveResult = await leads.saveLead({
+        ...validation.lead,
+        conversationId: session.id,
+      });
+      const completed = await sessions.markCompleted(
+        session.id,
+        saveResult.lead.id,
+        selectedBusiness,
+      );
+      if (!completed) {
+        throw new Error("Conversation session could not be completed.");
+      }
 
       if (!saveResult.created) {
-        return sendSessionReply(
+        return await sendSessionReply(
           response,
           session,
           "We already recorded this enquiry recently. The business will contact you to confirm availability; no appointment has been confirmed.",
+          selectedBusiness,
         );
       }
 
-      return sendSessionReply(
+      return await sendSessionReply(
         response,
         session,
         `Thanks, ${validation.lead.name}. Your enquiry has been recorded and the business will contact you to confirm availability. This is not a confirmed appointment.`,
+        selectedBusiness,
       );
     } catch (error) {
       // Log diagnostic metadata only; never log request headers or credentials.

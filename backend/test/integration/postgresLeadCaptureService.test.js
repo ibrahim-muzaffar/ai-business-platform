@@ -44,6 +44,11 @@ const IDS = {
   timeLead: "80000000-0000-0000-0000-000000000055",
   failedLead: "80000000-0000-0000-0000-000000000056",
   missingBusiness: "80000000-0000-0000-0000-000000000099",
+  conversation: "80000000-0000-0000-0000-000000000061",
+  otherOrganisation: "80000000-0000-0000-0000-000000000071",
+  otherBusiness: "80000000-0000-0000-0000-000000000072",
+  otherConversation: "80000000-0000-0000-0000-000000000073",
+  crossBusinessLead: "80000000-0000-0000-0000-000000000074",
 };
 
 const BASE_LEAD = {
@@ -56,6 +61,7 @@ const BASE_LEAD = {
   businessType: "barber",
   createdAt: "1999-01-01T00:00:00.000Z",
   status: "new",
+  conversationId: IDS.conversation,
 };
 
 const LEGACY_KEYS = [
@@ -98,6 +104,27 @@ test("PostgreSQL lead capture is atomic, scoped and legacy-compatible", async ()
   await assert.rejects(
     db.transaction(async (trx) => {
       await seed(trx);
+      await trx("organisations").insert({
+        id: IDS.otherOrganisation,
+        name: "Other Lead Organisation",
+      });
+      await trx("businesses").insert({
+        id: IDS.otherBusiness,
+        organisation_id: IDS.otherOrganisation,
+        business_type: "dentist",
+        name: "Other Lead Business",
+        timezone: "Europe/London",
+      });
+      await trx("conversations").insert([
+        {
+          id: IDS.conversation,
+          business_id: SEED_IDS.business,
+        },
+        {
+          id: IDS.otherConversation,
+          business_id: IDS.otherBusiness,
+        },
+      ]);
       const service = createLeadCaptureService({ db: trx });
 
       const firstResult = await service.saveLead(BASE_LEAD);
@@ -141,7 +168,8 @@ test("PostgreSQL lead capture is atomic, scoped and legacy-compatible", async ()
       assert.equal(storedLeads[0].requested_date, null);
       assert.equal(storedLeads[0].requested_time, null);
       assert.equal(storedLeads[0].service_id, null);
-      assert.equal(storedLeads[0].conversation_id, null);
+      assert.equal(storedLeads[0].conversation_id, IDS.conversation);
+      assert.equal(Object.hasOwn(firstResult.lead, "conversationId"), false);
 
       const duplicateResult = await service.saveLead({
         ...BASE_LEAD,
@@ -182,6 +210,30 @@ test("PostgreSQL lead capture is atomic, scoped and legacy-compatible", async ()
       }
       assert.equal(await countForBusiness(trx, "customers"), 1);
       assert.equal(await countForBusiness(trx, "leads"), 4);
+
+      await assert.rejects(
+        service.saveLead({
+          ...BASE_LEAD,
+          id: IDS.crossBusinessLead,
+          name: "Cross Business Customer",
+          phone: "07999 111111",
+          conversationId: IDS.otherConversation,
+        }),
+        (error) => error?.code === "23503",
+      );
+      assert.equal(
+        Number(
+          (
+            await trx("customers")
+              .where({
+                business_id: SEED_IDS.business,
+                name: "Cross Business Customer",
+              })
+              .count("* as count")
+          )[0].count,
+        ),
+        0,
+      );
 
       for (const [configuredBusinessIds, status, businessType] of [
         [{ barber: IDS.missingBusiness }, null, null],

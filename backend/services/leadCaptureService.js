@@ -166,7 +166,7 @@ function createLeadCaptureService({
         businessId,
         customerId: customer.id,
         serviceId: null,
-        conversationId: null,
+        conversationId: lead.conversationId ?? null,
         sourceChannel: "website",
         status: lead.status,
         requestedService: lead.service,

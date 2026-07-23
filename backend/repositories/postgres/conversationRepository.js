@@ -34,10 +34,40 @@ function createConversationRepository(db) {
     return mapConversation(row);
   }
 
+  async function findByIdForBusinessForUpdate(businessId, conversationId) {
+    const row = await db("conversations")
+      .where({ business_id: businessId, id: conversationId })
+      .forUpdate()
+      .first();
+    return mapConversation(row);
+  }
+
+  async function touchForBusiness(businessId, conversationId, touchedAt) {
+    const [row] = await db("conversations")
+      .where({ business_id: businessId, id: conversationId })
+      .update({ updated_at: touchedAt })
+      .returning("*");
+    return mapConversation(row);
+  }
+
+  async function updateMetadataForBusiness(
+    businessId,
+    conversationId,
+    metadata,
+    updatedAt,
+  ) {
+    const [row] = await db("conversations")
+      .where({ business_id: businessId, id: conversationId })
+      .update({ metadata, updated_at: updatedAt })
+      .returning("*");
+    return mapConversation(row);
+  }
+
   async function updateLastMessageAtForBusiness(
     businessId,
     conversationId,
     lastMessageAt,
+    updatedAt,
   ) {
     const timestampExpression = db.raw(
       `CASE
@@ -52,7 +82,7 @@ function createConversationRepository(db) {
       .where({ business_id: businessId, id: conversationId })
       .update({
         last_message_at: timestampExpression,
-        updated_at: db.raw("clock_timestamp()"),
+        updated_at: updatedAt ?? db.raw("clock_timestamp()"),
       })
       .returning("*");
     return mapConversation(row);
@@ -85,9 +115,12 @@ function createConversationRepository(db) {
   return {
     createConversation,
     findByIdForBusiness,
+    findByIdForBusinessForUpdate,
     listByBusinessId,
     listByCustomerForBusiness,
     listByStatusForBusiness,
+    touchForBusiness,
+    updateMetadataForBusiness,
     updateLastMessageAtForBusiness,
   };
 }

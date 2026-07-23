@@ -336,6 +336,20 @@ Each decision contains:
 
 ---
 
+## ADR-024 — Persist live website sessions as PostgreSQL conversations
+
+**Status:** Accepted
+
+**Context:** Process-local sessions disappear on restart and cannot provide durable conversation or message history for the live website chatbot.
+
+**Decision:** Live website sessions are PostgreSQL conversations and messages. `conversations.metadata` temporarily stores `leadFields`, `completed`, and `leadId`. Session access is business-scoped, and active retrieval explicitly touches `updated_at`. Thirty minutes of inactivity prevents resumption but does not delete, close, or archive the conversation or its messages. Only the latest configured number of messages is returned for AI context. Public user and assistant roles map to PostgreSQL `customer` and `ai` sender types. Leads captured from chat are linked through `conversation_id`.
+
+**Rationale:** Durable, tenant-scoped history supports reliable multi-message collection and restart safety while preserving a bounded AI context and the existing public session contract.
+
+**Consequences:** The live route no longer uses the process-local session repository. Expired history remains stored, and production retention and archival rules remain deferred. The temporary metadata session state will be reviewed during later workflow and cleanup work.
+
+---
+
 ## Change record template
 
 Use this section only when an accepted roadmap or architectural decision changes.

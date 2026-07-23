@@ -353,6 +353,68 @@ test("PostgreSQL conversation and message repositories map, order and isolate da
         [],
       );
 
+      const lockedConversation =
+        await conversations.findByIdForBusinessForUpdate(
+          IDS.businessA,
+          defaultConversation.id,
+        );
+      assert.equal(lockedConversation.id, defaultConversation.id);
+      assert.equal(
+        await conversations.findByIdForBusinessForUpdate(
+          IDS.businessB,
+          defaultConversation.id,
+        ),
+        null,
+      );
+
+      const touchedAt = new Date("2026-06-01T12:00:00.000Z");
+      const touchedConversation = await conversations.touchForBusiness(
+        IDS.businessA,
+        defaultConversation.id,
+        touchedAt,
+      );
+      assert.equal(touchedConversation.updatedAt.getTime(), touchedAt.getTime());
+      assert.equal(
+        await conversations.touchForBusiness(
+          IDS.businessB,
+          defaultConversation.id,
+          touchedAt,
+        ),
+        null,
+      );
+
+      const suppliedMetadata = {
+        unrelated: { preserved: true },
+        leadFields: { name: "Alex" },
+      };
+      const metadataConversation =
+        await conversations.updateMetadataForBusiness(
+          IDS.businessA,
+          defaultConversation.id,
+          suppliedMetadata,
+          new Date("2026-06-02T12:00:00.000Z"),
+        );
+      assert.deepEqual(metadataConversation.metadata, suppliedMetadata);
+
+      assert.deepEqual(
+        (
+          await messages.listRecentByConversationForBusiness(
+            IDS.businessA,
+            defaultConversation.id,
+            2,
+          )
+        ).map(({ id }) => id),
+        [IDS.messageTieLower, IDS.messageTieHigher],
+      );
+      assert.deepEqual(
+        await messages.listRecentByConversationForBusiness(
+          IDS.businessB,
+          defaultConversation.id,
+          2,
+        ),
+        [],
+      );
+
       await expectMessageError(
         trx,
         {
