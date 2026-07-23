@@ -294,6 +294,8 @@
 - `requestedService`
 - `requestedDate`
 - `requestedTime`
+- `requestedDateText`
+- `requestedTimeText`
 - `assignedUserId`
 - `followUpAt`
 - `createdAt`
@@ -313,6 +315,7 @@
 - Status uses controlled values
 - Duplicate prevention should consider business, customer identity, enquiry type, and time window
 - Dates and times require timezone-aware interpretation
+- Raw requested date and time text preserves the customer's original preference; `requestedDate` and `requestedTime` hold parsed structured values and may remain null until timezone-aware interpretation is safe for booking use
 
 **Status:** Phase 2 with CRM extensions in Phase 7
 

@@ -294,6 +294,76 @@ Each decision contains:
 
 ---
 
+## ADR-021 — Application services own multi-record transaction boundaries
+
+**Status:** Accepted
+
+**Context:** Actions that write multiple related records must not leave partial state or report success before all writes commit.
+
+**Decision:** Application and domain services own transaction boundaries. Repositories remain transaction-agnostic and accept an injected Knex connection or transaction. Multi-record actions commit or roll back as one unit. Repository update methods explicitly maintain `updated_at` rather than relying on an unspecified database trigger.
+
+**Rationale:** This preserves atomicity, makes repositories reusable and independently testable, prevents partial-success claims, and keeps responsibilities clear between routes, services, and infrastructure.
+
+**Consequences:** Repositories accept Knex or `trx`, while routes do not start transactions. Message creation and conversation activity updates are atomic. Future repository update methods must explicitly maintain `updated_at` unless a later ADR introduces a database trigger.
+
+---
+
+## ADR-022 — Preserve raw requested date and time wording
+
+**Status:** Accepted
+
+**Context:** Customer-supplied date and time wording may be ambiguous and cannot always be safely converted into structured database values during lead capture.
+
+**Decision:** Preserve customer-supplied date and time wording separately from parsed database date and time values. Store the raw text during lead capture, while parsed values may remain null until safe timezone-aware interpretation is available. The system must not guess ambiguous dates or times.
+
+**Rationale:** Retaining the original preference prevents information loss and supports later interpretation using the business timezone without creating false booking details.
+
+**Consequences:** Lead storage supports both raw requested text and parsed structured values. Booking workflows must use timezone-aware interpretation before relying on parsed dates or times.
+
+---
+
+## ADR-023 — Capture PostgreSQL leads through one locked application-service transaction
+
+**Status:** Accepted
+
+**Context:** Runtime lead capture must create or reuse a customer and prevent duplicate recent enquiries without allowing concurrent requests to produce partial or duplicate records.
+
+**Decision:** Lead capture is owned by an application-service transaction. Customer identity matching is conservative and business-scoped, using normalized name plus phone digits; email alone never merges customers. Duplicate prevention uses a five-minute business, customer, and enquiry window. A transaction-scoped PostgreSQL advisory lock keyed to the business and normalized customer identity protects concurrent customer and lead creation. Raw requested date and time wording is stored without guessing parsed values. Conversation sessions remain in memory until their later controlled cutover.
+
+**Rationale:** One locked transaction prevents partial customer or lead writes, preserves tenant isolation, and keeps duplicate decisions consistent under concurrent requests while retaining the customer's original wording.
+
+**Consequences:** Routes delegate lead persistence without starting transactions. PostgreSQL stores customers and leads atomically, while parsed requested dates and times may remain null. The process-local session repository remains temporary and unchanged during this cutover.
+
+---
+
+## ADR-024 — Persist live website sessions as PostgreSQL conversations
+
+**Status:** Accepted
+
+**Context:** Process-local sessions disappear on restart and cannot provide durable conversation or message history for the live website chatbot.
+
+**Decision:** Live website sessions are PostgreSQL conversations and messages. `conversations.metadata` temporarily stores `leadFields`, `completed`, and `leadId`. Session access is business-scoped, and active retrieval explicitly touches `updated_at`. Thirty minutes of inactivity prevents resumption but does not delete, close, or archive the conversation or its messages. Only the latest configured number of messages is returned for AI context. Public user and assistant roles map to PostgreSQL `customer` and `ai` sender types. Leads captured from chat are linked through `conversation_id`.
+
+**Rationale:** Durable, tenant-scoped history supports reliable multi-message collection and restart safety while preserving a bounded AI context and the existing public session contract.
+
+**Consequences:** The live route no longer uses the process-local session repository. Expired history remains stored, and production retention and archival rules remain deferred. The temporary metadata session state will be reviewed during later workflow and cleanup work.
+
+---
+
+## ADR-025 — Complete the controlled PostgreSQL runtime cutover
+
+**Status:** Accepted
+
+**Context:** PostgreSQL replacement repositories and application services now cover the verified business-data, lead-capture, conversation, message, and temporary session-state behavior previously provided by tracked JSON files and process memory.
+
+**Decision:** The controlled PostgreSQL runtime cutover is complete. Retire the tracked JSON business and lead providers and the process-local session provider. The live route uses PostgreSQL-backed services for verified business data, customers, leads, conversations, messages, and temporary session state. Remove obsolete provider-specific tests because PostgreSQL replacement tests now cover live behavior. Routes continue to contain no raw database logic, while migrations, seeds, repositories, and application services remain separate responsibilities.
+
+**Rationale:** Removing inactive prototype paths eliminates conflicting sources of truth and prevents accidental regression to non-durable storage while retaining tested service and repository boundaries.
+
+**Consequences:** Runtime business and chatbot state now survives backend restarts. Authenticated owner tenant isolation remains Phase 3, and production retention and archival policy remains deferred.
+
+---
+
 ## Change record template
 
 Use this section only when an accepted roadmap or architectural decision changes.

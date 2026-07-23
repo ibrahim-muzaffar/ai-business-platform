@@ -1,0 +1,25 @@
+# These credentials are for local Docker development only. Never reuse them in
+# staging or production environments.
+services:
+  postgres:
+    image: postgres:18
+    container_name: ai-business-postgres
+    environment:
+      POSTGRES_USER: ai_business
+      POSTGRES_PASSWORD: local_dev_only_password
+      POSTGRES_DB: ai_business_dev
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - ai_business_postgres_data:/var/lib/postgresql
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ai_business -d ai_business_dev"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
+volumes:
+  ai_business_postgres_data:

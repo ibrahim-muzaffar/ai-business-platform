@@ -19,9 +19,30 @@ app.use("/api/chat", chatRouter);
 // Start the HTTP server only when this file is run directly. Exporting the app
 // keeps it easy to test and extend without opening another network listener.
 if (require.main === module) {
-  app.listen(PORT, () => {
-    console.log(`Backend listening on http://localhost:${PORT}`);
-  });
+  const {
+    closeDatabaseConnection,
+    getDatabaseConnection,
+  } = require("./db/connection");
+  const { startServer } = require("./runtime/serverLifecycle");
+
+  startServer({
+    app,
+    port: PORT,
+    getDatabaseConnection: () => getDatabaseConnection("development"),
+    closeDatabaseConnection: () =>
+      closeDatabaseConnection("development"),
+  })
+    .then(() => {
+      console.log(`Backend listening on http://localhost:${PORT}`);
+    })
+    .catch((error) => {
+      console.error("Backend startup failed", {
+        name: error?.name,
+        code: error?.code,
+        message: error?.message,
+      });
+      process.exitCode = 1;
+    });
 }
 
 module.exports = app;
