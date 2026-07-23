@@ -41,6 +41,31 @@ function createCustomerRepository(db) {
     return mapCustomer(row);
   }
 
+  async function findFirstByNormalisedIdentityForBusiness(
+    businessId,
+    { name, phoneDigits },
+  ) {
+    const row = await db("customers")
+      .where({ business_id: businessId })
+      .whereRaw("lower(btrim(name)) = ?", [name])
+      .whereRaw("regexp_replace(phone, '[^0-9]', '', 'g') = ?", [
+        phoneDigits,
+      ])
+      .orderBy("created_at", "asc")
+      .orderBy("id", "asc")
+      .first();
+    return mapCustomer(row);
+  }
+
+  async function fillMissingEmailForBusiness(businessId, customerId, email) {
+    const [row] = await db("customers")
+      .where({ business_id: businessId, id: customerId })
+      .whereNull("email")
+      .update({ email, updated_at: db.fn.now() })
+      .returning("*");
+    return mapCustomer(row);
+  }
+
   async function listByBusinessId(businessId) {
     const rows = await db("customers")
       .where({ business_id: businessId })
@@ -53,7 +78,9 @@ function createCustomerRepository(db) {
     createCustomer,
     findByIdForBusiness,
     findFirstByEmailForBusiness,
+    findFirstByNormalisedIdentityForBusiness,
     findFirstByPhoneForBusiness,
+    fillMissingEmailForBusiness,
     listByBusinessId,
   };
 }

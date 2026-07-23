@@ -322,6 +322,20 @@ Each decision contains:
 
 ---
 
+## ADR-023 — Capture PostgreSQL leads through one locked application-service transaction
+
+**Status:** Accepted
+
+**Context:** Runtime lead capture must create or reuse a customer and prevent duplicate recent enquiries without allowing concurrent requests to produce partial or duplicate records.
+
+**Decision:** Lead capture is owned by an application-service transaction. Customer identity matching is conservative and business-scoped, using normalized name plus phone digits; email alone never merges customers. Duplicate prevention uses a five-minute business, customer, and enquiry window. A transaction-scoped PostgreSQL advisory lock keyed to the business and normalized customer identity protects concurrent customer and lead creation. Raw requested date and time wording is stored without guessing parsed values. Conversation sessions remain in memory until their later controlled cutover.
+
+**Rationale:** One locked transaction prevents partial customer or lead writes, preserves tenant isolation, and keeps duplicate decisions consistent under concurrent requests while retaining the customer's original wording.
+
+**Consequences:** Routes delegate lead persistence without starting transactions. PostgreSQL stores customers and leads atomically, while parsed requested dates and times may remain null. The process-local session repository remains temporary and unchanged during this cutover.
+
+---
+
 ## Change record template
 
 Use this section only when an accepted roadmap or architectural decision changes.

@@ -162,6 +162,7 @@ function createRuntimeBusinessRepository({
 const defaultRepository = createRuntimeBusinessRepository();
 
 module.exports = {
+  DEFAULT_CONFIGURED_BUSINESS_IDS,
   createRuntimeBusinessRepository,
   getBusinessData: defaultRepository.getBusinessData,
   isBusinessConfigured: defaultRepository.isBusinessConfigured,

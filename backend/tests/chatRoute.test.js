@@ -238,3 +238,149 @@ test("database failures use the controlled response without exposing details", a
   );
   assert.deepEqual(calls, { analysis: 0, createSession: 0, getSession: 0 });
 });
+
+function createCompleteLeadRouter({ saveLead, markedLeadIds }) {
+  const session = {
+    id: "session-lead-1",
+    businessType: "barber",
+    leadFields: {},
+    messages: [],
+    completed: false,
+  };
+  const preparedLead = {
+    id: "70000000-0000-0000-0000-000000000051",
+    name: "Alex Smith",
+    phone: "07123 456789",
+    email: "alex@example.test",
+    service: "Classic haircut",
+    preferredDate: "22 July 2026",
+    preferredTime: "2:30 pm",
+    businessType: "barber",
+    createdAt: "2026-07-22T12:00:00.000Z",
+    status: "new",
+  };
+
+  return {
+    preparedLead,
+    router: chatRouter.createChatRouter({
+      openAIClient: { responses: {} },
+      businesses: {
+        normaliseBusinessType: (value) => value.trim().toLowerCase(),
+        isBusinessConfigured: () => true,
+        getBusinessData: async () => ({
+          businessType: "barber",
+          name: "Test Barbers",
+        }),
+      },
+      sessions: {
+        getSession: () => session,
+        createSession: () => session,
+        addMessage: (_sessionId, message) => session.messages.push(message),
+        mergeLeadFields: (_sessionId, fields) => {
+          Object.assign(session.leadFields, fields);
+        },
+        markCompleted: (_sessionId, leadId) => markedLeadIds.push(leadId),
+      },
+      analysis: {
+        analyseChatMessage: async () => ({
+          intent: "lead",
+          reply: "",
+          leadFields: { name: "Alex Smith" },
+        }),
+      },
+      leadValidation: {
+        prepareLead: () => ({
+          invalidFields: [],
+          missingFields: [],
+          lead: preparedLead,
+        }),
+      },
+      leads: { saveLead },
+    }),
+  };
+}
+
+test("complete leads use the stored ID and preserve the success reply", async () => {
+  const markedLeadIds = [];
+  let receivedLead;
+  const storedLead = {
+    id: "70000000-0000-0000-0000-000000000061",
+  };
+  const { preparedLead, router } = createCompleteLeadRouter({
+    markedLeadIds,
+    saveLead: async (lead) => {
+      receivedLead = lead;
+      return { created: true, lead: storedLead };
+    },
+  });
+
+  const result = await postChat(router, {
+    message: "Please record my haircut enquiry",
+    businessType: "barber",
+    sessionId: "session-lead-1",
+  });
+
+  assert.equal(receivedLead, preparedLead);
+  assert.deepEqual(markedLeadIds, [storedLead.id]);
+  assert.deepEqual(result, {
+    status: 200,
+    body: {
+      status: "success",
+      reply:
+        "Thanks, Alex Smith. Your enquiry has been recorded and the business will contact you to confirm availability. This is not a confirmed appointment.",
+      sessionId: "session-lead-1",
+    },
+  });
+});
+
+test("duplicate leads use the stored ID and preserve the duplicate reply", async () => {
+  const markedLeadIds = [];
+  const duplicateLead = {
+    id: "70000000-0000-0000-0000-000000000062",
+  };
+  const { router } = createCompleteLeadRouter({
+    markedLeadIds,
+    saveLead: async () => ({ created: false, lead: duplicateLead }),
+  });
+
+  const result = await postChat(router, {
+    message: "Please record my haircut enquiry",
+    businessType: "barber",
+    sessionId: "session-lead-1",
+  });
+
+  assert.deepEqual(markedLeadIds, [duplicateLead.id]);
+  assert.deepEqual(result, {
+    status: 200,
+    body: {
+      status: "success",
+      reply:
+        "We already recorded this enquiry recently. The business will contact you to confirm availability; no appointment has been confirmed.",
+      sessionId: "session-lead-1",
+    },
+  });
+});
+
+test("lead persistence failures use the controlled response", async () => {
+  const markedLeadIds = [];
+  const { router } = createCompleteLeadRouter({
+    markedLeadIds,
+    saveLead: async () => {
+      throw new Error("sensitive PostgreSQL lead error");
+    },
+  });
+
+  const result = await postChat(router, {
+    message: "Please record my haircut enquiry",
+    businessType: "barber",
+    sessionId: "session-lead-1",
+  });
+
+  assert.equal(result.status, 500);
+  assert.deepEqual(result.body, {
+    status: "error",
+    message: "The AI assistant is temporarily unavailable. Please try again.",
+  });
+  assert.equal(JSON.stringify(result.body).includes("sensitive PostgreSQL"), false);
+  assert.deepEqual(markedLeadIds, []);
+});

@@ -1,6 +1,7 @@
 const { mapLead } = require("./mappers");
 
 const OPTIONAL_COLUMNS = {
+  id: "id",
   customerId: "customer_id",
   serviceId: "service_id",
   conversationId: "conversation_id",
@@ -66,6 +67,35 @@ function createLeadRepository(db) {
     return mapLead(row);
   }
 
+  async function findRecentDuplicateForBusiness({
+    businessId,
+    customerId,
+    requestedService,
+    requestedDateText,
+    requestedTimeText,
+    createdAfter,
+  }) {
+    const row = await selectedLeads()
+      .where({
+        "leads.business_id": businessId,
+        "leads.customer_id": customerId,
+      })
+      .where("leads.created_at", ">=", createdAfter)
+      .whereRaw("lower(leads.requested_service) = lower(?)", [
+        requestedService,
+      ])
+      .whereRaw("lower(leads.requested_date_text) = lower(?)", [
+        requestedDateText,
+      ])
+      .whereRaw("lower(leads.requested_time_text) = lower(?)", [
+        requestedTimeText,
+      ])
+      .orderBy("leads.created_at", "asc")
+      .orderBy("leads.id", "asc")
+      .first();
+    return mapLead(row);
+  }
+
   function orderedBusinessQuery(businessId) {
     return selectedLeads()
       .where({ "leads.business_id": businessId })
@@ -93,6 +123,7 @@ function createLeadRepository(db) {
   return {
     createLead,
     findByIdForBusiness,
+    findRecentDuplicateForBusiness,
     listByBusinessId,
     listByCustomerForBusiness,
     listByStatusForBusiness,
