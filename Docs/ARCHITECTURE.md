@@ -39,7 +39,7 @@ PostgreSQL | OpenAI | Calendar | Email | Booking providers | Social platforms
 
 ## 3. Current architecture
 
-The current prototype is expected to contain:
+The current system contains:
 
 ### Frontend
 
@@ -58,9 +58,11 @@ The public website is not production-complete. The About area, contact section a
 
 - Express
 - OpenAI Responses API integration
-- Business repository
-- Lead repository
-- Conversation-session repository
+- PostgreSQL runtime business repository
+- PostgreSQL lead-capture application service
+- PostgreSQL conversation-session application service
+- Tenant-scoped PostgreSQL repositories
+- Knex migrations and deterministic barber seed data
 - Grounded barber knowledge
 - Structured lead extraction
 - Lead validation
@@ -70,11 +72,13 @@ The public website is not production-complete. The About area, contact section a
 
 ### Current storage
 
-- Business data: JSON
-- Leads: JSON
-- Conversation sessions: in memory
+- Verified business configuration: PostgreSQL
+- Customers and leads: PostgreSQL
+- Conversations and messages: PostgreSQL
+- Temporary session state: `conversations.metadata` JSONB
 
-These implementations are temporary and must remain behind repository interfaces.
+The controlled runtime cutover is complete. Business data, captured enquiries,
+conversation history, and temporary session state survive backend restarts.
 
 ## Technology Stack
 
@@ -96,14 +100,13 @@ These implementations are temporary and must remain behind repository interfaces
 - **dotenv 17.4.2:** Loads local backend environment variables from `.env` at startup.
 - **CORS 2.8.6:** Allows the separately served frontend to call the backend during development.
 - **Node.js built-in test runner:** Runs the offline backend test suite through `node --test` without a separate test framework.
-- **Node.js `crypto.randomUUID()`:** Generates lead, session, and temporary-file identifiers without an additional UUID package.
-- **JSON-file storage:** Stores verified barber data and temporary lead records through Node.js filesystem APIs.
-- **Process-local `Map` session storage:** Holds temporary conversation sessions, accumulated lead fields, and limited recent message history in backend memory.
+- **Node.js `crypto.randomUUID()`:** Generates prepared lead identifiers without an additional UUID package.
+- **Knex 3.3.0:** Provides CommonJS PostgreSQL configuration, migrations, seeds, queries, and transaction support.
+- **pg 8.22.0:** Provides the PostgreSQL driver used by Knex.
+- **PostgreSQL 18:** Stores business configuration, customers, leads, conversations, messages, workflows, and module configuration for the current runtime.
 
-### Planned permanent infrastructure
+### Planned remaining infrastructure
 
-- **PostgreSQL:** The planned permanent relational database for tenant-scoped platform data.
-- **Migration and schema-management tool:** Not yet selected and will be chosen during the PostgreSQL phase.
 - **Authentication provider or implementation:** Not yet selected and will be chosen during the authentication phase.
 - **Managed hosting providers:** Not yet selected for the frontend, API, or PostgreSQL infrastructure.
 - **Secure secret management:** Environment-specific secrets will be stored and supplied through secure deployment mechanisms rather than source control.
@@ -111,19 +114,23 @@ These implementations are temporary and must remain behind repository interfaces
 - **Structured logging and error monitoring:** Production logging and monitoring capabilities are planned, with providers not yet selected.
 - **Provider adapters:** Calendar, email, messaging, and later voice integrations will remain behind provider-specific adapters.
 
-### Temporary versus permanent technology
+### Prototype transition status
 
-**Temporary prototype**
+**Retired prototype storage**
 
 - JSON business data
 - JSON lead storage
 - Process-local in-memory sessions
-- Localhost frontend/backend communication
 
-**Permanent target**
+**Current runtime foundation**
 
 - PostgreSQL repositories
 - Persistent conversations and messages
+- Knex migrations and deterministic seed data
+- Application-service transaction boundaries
+
+**Still planned**
+
 - Authentication and tenant isolation
 - Deployed API and frontend
 - Secure environment-specific configuration
@@ -266,7 +273,7 @@ Routes and modules should depend on repository contracts, not concrete storage t
 
 Repositories accept an injected database connection or transaction and do not start transactions themselves. Application and domain services own transaction boundaries when one logical action modifies multiple records; routes must not contain raw transaction or database logic.
 
-Creating a message and updating its conversation activity timestamp is one atomic action that commits or rolls back as a unit. Runtime JSON and in-memory providers remain active until the controlled Phase 2 PostgreSQL cutover.
+Creating a message and updating its conversation activity timestamp is one atomic action that commits or rolls back as a unit. Customer/lead capture and conversation-session mutations also use application-service-owned PostgreSQL transactions; routes contain no raw transaction logic.
 
 ### 5.7 Infrastructure adapters
 
@@ -382,33 +389,49 @@ Browser chatbot
 POST /api/chat
         |
         v
-Configured-business guard
-        |
-        +---- unsupported ----> safe not-configured response
+Validate request
         |
         v
-Get or create the barber’s in-memory conversation session
+Configured-business guard ---- unsupported ----> safe not-configured response
         |
         v
-Load verified barber business data
+Load verified PostgreSQL business data
         |
         v
-AI analysis and grounded response
+Resume an active PostgreSQL conversation or create a new one
         |
         v
-Validate and save lead when complete
+Persist the user message
         |
         v
-Return reply and session ID
+Run grounded structured AI analysis
+        |
+        v
+Persist assistant messages
+        |
+        v
+Accumulate lead fields in conversation metadata
+        |
+        v
+Atomically create or reuse the customer and lead when complete
+        |
+        v
+Link the lead to the conversation
+        |
+        v
+Mark conversation metadata completed
+        |
+        v
+Return reply and conversation/session UUID
 ```
 
 Current limitations:
 
-- Sessions are lost on restart.
-- Business data is file-based.
-- Leads are file-based.
 - No authenticated owner context exists.
 - Only the barber is configured.
+- No real booking provider is connected; captured enquiries are not confirmed bookings.
+- Production conversation retention and archival rules remain deferred.
+- The public website remains incomplete until Phase 9.
 
 ## 10. Planned permanent request flow
 
@@ -578,9 +601,11 @@ frontend/
 backend/
   routes/              HTTP request handling
   services/            Application and domain logic
-  repositories/        Storage contracts and implementations
-  data/                Temporary prototype data
+  repositories/postgres/ Tenant-scoped PostgreSQL implementations
+  db/migrations/       Ordered application schema changes
+  db/seeds/            Deterministic configured-business data
   tests/               Offline automated tests
+  test/integration/    PostgreSQL integration tests
 ```
 
 The exact repository structure must be verified before treating this as final.
@@ -592,8 +617,6 @@ backend/
   modules/
   integrations/
   middleware/
-  db/
-  migrations/
   validators/
   policies/
 ```
@@ -614,22 +637,8 @@ backend/
 
 ## 19. Migration strategy
 
-The application must migrate infrastructure without rewriting application behaviour.
-
-Example:
-
-```text
-JSON lead repository
-        |
-        v
-PostgreSQL lead repository
-```
-
-Application services continue calling stable methods such as:
-
-- `saveLead`
-- `findLeadById`
-- `listLeadsForBusiness`
-- `updateLeadStatus`
-
-The implementation changes; the application contract remains stable.
+The controlled Phase 2 storage migration is complete. Stable route-facing
+contracts were retained while PostgreSQL repositories and application services
+replaced the prototype providers. Future infrastructure changes must preserve
+the same separation: routes invoke application services, services own
+multi-record transactions, and repositories encapsulate tenant-scoped storage.

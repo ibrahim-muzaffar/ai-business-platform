@@ -350,6 +350,20 @@ Each decision contains:
 
 ---
 
+## ADR-025 — Complete the controlled PostgreSQL runtime cutover
+
+**Status:** Accepted
+
+**Context:** PostgreSQL replacement repositories and application services now cover the verified business-data, lead-capture, conversation, message, and temporary session-state behavior previously provided by tracked JSON files and process memory.
+
+**Decision:** The controlled PostgreSQL runtime cutover is complete. Retire the tracked JSON business and lead providers and the process-local session provider. The live route uses PostgreSQL-backed services for verified business data, customers, leads, conversations, messages, and temporary session state. Remove obsolete provider-specific tests because PostgreSQL replacement tests now cover live behavior. Routes continue to contain no raw database logic, while migrations, seeds, repositories, and application services remain separate responsibilities.
+
+**Rationale:** Removing inactive prototype paths eliminates conflicting sources of truth and prevents accidental regression to non-durable storage while retaining tested service and repository boundaries.
+
+**Consequences:** Runtime business and chatbot state now survives backend restarts. Authenticated owner tenant isolation remains Phase 3, and production retention and archival policy remains deferred.
+
+---
+
 ## Change record template
 
 Use this section only when an accepted roadmap or architectural decision changes.
