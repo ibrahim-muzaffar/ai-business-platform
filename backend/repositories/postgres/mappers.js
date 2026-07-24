@@ -134,13 +134,53 @@ function mapMessage(row) {
   };
 }
 
+function mapUser(row) {
+  if (!row) return null;
+
+  return {
+    id: row.id,
+    email: row.email,
+    normalisedEmail: row.normalised_email,
+    displayName: row.display_name,
+    status: row.status,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function mapAuthenticationRecord(row) {
+  if (!row) return null;
+
+  return {
+    ...mapUser(row),
+    passwordHash: row.password_hash,
+  };
+}
+
+function mapOrganisationMembership(row) {
+  if (!row) return null;
+
+  return {
+    id: row.id,
+    organisationId: row.organisation_id,
+    userId: row.user_id,
+    role: row.role,
+    status: row.status,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
 module.exports = {
+  mapAuthenticationRecord,
   mapBusiness,
   mapConversation,
   mapCustomer,
   mapLead,
   mapMessage,
   mapOpeningHours,
+  mapOrganisationMembership,
   mapPolicy,
   mapService,
+  mapUser,
 };
