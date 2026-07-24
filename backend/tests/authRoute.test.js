@@ -2,10 +2,13 @@ const assert = require("node:assert/strict");
 const test = require("node:test");
 const express = require("express");
 
+const {
+  ORGANISATION_CAPABILITIES,
+} = require("../authorization/organisationCapabilityPolicy");
 const { AuthenticationError } = require("../errors/authenticationError");
 const {
-  createRequireOrganisationRolesMiddleware,
-} = require("../middleware/organisationRoleAuthorizationMiddleware");
+  createRequireOrganisationCapabilityMiddleware,
+} = require("../middleware/organisationCapabilityAuthorizationMiddleware");
 const { createAuthRouter } = require("../routes/auth");
 
 const SAFE_USER = Object.freeze({
@@ -99,7 +102,7 @@ function createFixture(overrides = {}) {
         });
         next();
       },
-      managementRoleMiddleware: (_request, _response, next) => {
+      managementCapabilityMiddleware: (_request, _response, next) => {
         calls.middleware += 1;
         next();
       },
@@ -916,9 +919,10 @@ test("/management-context allows owner and admin with safe output", async () => 
       runtime: {
         organisationContextMiddleware:
           organisationMiddlewareForRole(role),
-        managementRoleMiddleware:
-          createRequireOrganisationRolesMiddleware({
-            allowedRoles: ["owner", "admin"],
+        managementCapabilityMiddleware:
+          createRequireOrganisationCapabilityMiddleware({
+            capability:
+              ORGANISATION_CAPABILITIES.BUSINESS_SETTINGS_MANAGE,
           }),
       },
     });
@@ -972,9 +976,10 @@ test("/management-context denies staff, viewer and inactive membership", async (
       runtime: {
         organisationContextMiddleware:
           organisationMiddlewareForRole(role, status),
-        managementRoleMiddleware:
-          createRequireOrganisationRolesMiddleware({
-            allowedRoles: ["owner", "admin"],
+        managementCapabilityMiddleware:
+          createRequireOrganisationCapabilityMiddleware({
+            capability:
+              ORGANISATION_CAPABILITIES.BUSINESS_SETTINGS_MANAGE,
           }),
       },
     });
@@ -1013,7 +1018,7 @@ test("/management-context preserves upstream authentication and context errors",
         [layer]: async (_request, _response, next) => {
           next(new AuthenticationError(code));
         },
-        managementRoleMiddleware: (_request, _response, next) => {
+        managementCapabilityMiddleware: (_request, _response, next) => {
           roleCalls += 1;
           next();
         },
@@ -1041,9 +1046,10 @@ test("/management-context treats missing trusted role context as internal failur
         };
         next();
       },
-      managementRoleMiddleware:
-        createRequireOrganisationRolesMiddleware({
-          allowedRoles: ["owner", "admin"],
+      managementCapabilityMiddleware:
+        createRequireOrganisationCapabilityMiddleware({
+          capability:
+            ORGANISATION_CAPABILITIES.BUSINESS_SETTINGS_MANAGE,
           logger: {
             error(...values) {
               logs.push(values);

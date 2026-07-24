@@ -380,6 +380,25 @@ A user from one organisation must never access another organisation's:
 
 Public chatbot routes must expose only approved public business information.
 
+### Current static organisation capability policy
+
+The Phase 3 MVP authorisation policy is code-defined and immutable. Each
+capability has an explicit request scope and an explicit role list; no role
+hierarchy is inferred.
+
+| Capability | Scope | Allowed roles |
+| --- | --- | --- |
+| `organisation.ownership.manage` | Organisation | owner |
+| `organisation.settings.manage` | Organisation | owner, admin |
+| `business.settings.manage` | Business | owner, admin |
+| `business.operations.write` | Business | owner, admin, staff |
+| `business.data.read` | Business | owner, admin, staff, viewer |
+
+Organisation members currently receive organisation-wide access to businesses
+according to this policy. Branch-specific membership is deliberately deferred.
+Subscription entitlement is evaluated separately from authorisation and does
+not alter these capability decisions.
+
 ## 9. Current request flow
 
 ```text

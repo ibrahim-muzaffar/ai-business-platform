@@ -315,8 +315,12 @@ function createAuthRouter({
     },
     (request, response, next) => {
       try {
-        const { managementRoleMiddleware } = getRuntime();
-        return managementRoleMiddleware(request, response, next);
+        const { managementCapabilityMiddleware } = getRuntime();
+        return managementCapabilityMiddleware(
+          request,
+          response,
+          next,
+        );
       } catch (error) {
         next(error);
       }

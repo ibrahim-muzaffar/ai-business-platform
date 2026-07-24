@@ -53,7 +53,10 @@ test("authentication runtime composes one injected database dependency", () => {
   );
   assert.equal(typeof runtime.authenticationMiddleware, "function");
   assert.equal(typeof runtime.businessContextMiddleware, "function");
-  assert.equal(typeof runtime.managementRoleMiddleware, "function");
+  assert.equal(
+    typeof runtime.managementCapabilityMiddleware,
+    "function",
+  );
   assert.equal(
     typeof runtime.organisationContextMiddleware,
     "function",
