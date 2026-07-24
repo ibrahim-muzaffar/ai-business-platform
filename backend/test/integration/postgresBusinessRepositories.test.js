@@ -195,6 +195,15 @@ test("PostgreSQL business configuration repositories map and isolate reads", asy
       assertIdentityAndTimestamps(business);
 
       assert.equal(
+        (
+          await businesses.findByIdForOrganisation(
+            IDS.organisationA,
+            IDS.businessA,
+          )
+        ).id,
+        IDS.businessA,
+      );
+      assert.equal(
         await businesses.findByIdForOrganisation(
           IDS.organisationB,
           IDS.businessA,

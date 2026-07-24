@@ -1,6 +1,11 @@
 const AUTHENTICATION_ERROR_MESSAGES = Object.freeze({
   AUTHENTICATION_REQUIRED: "Authentication is required.",
   AUTHENTICATION_UNAVAILABLE: "Authentication could not be completed.",
+  BUSINESS_ACCESS_DENIED:
+    "Access to the selected business is denied.",
+  BUSINESS_CONTEXT_UNAVAILABLE:
+    "Business context could not be resolved.",
+  BUSINESS_REQUIRED: "A valid business selection is required.",
   EMAIL_ALREADY_REGISTERED: "An account with this email already exists.",
   INVALID_CREDENTIALS: "The email or password is incorrect.",
   INVALID_TOKEN: "The access token is invalid.",

@@ -62,6 +62,16 @@ function createFixture(overrides = {}) {
         });
         next();
       },
+      businessContextMiddleware: async (request, _response, next) => {
+        calls.middleware += 1;
+        request.business = Object.freeze({
+          id: "e0000000-0000-4000-8000-000000000001",
+          organisationId:
+            "d0000000-0000-4000-8000-000000000001",
+          name: "Northside Barbers",
+        });
+        next();
+      },
       organisationContextMiddleware: async (
         request,
         _response,
@@ -103,7 +113,7 @@ function createFixture(overrides = {}) {
 async function requestProtected(
   router,
   path,
-  { authorization, organisationId } = {},
+  { authorization, businessId, organisationId } = {},
 ) {
   const app = express();
   app.use("/api/auth", router);
@@ -122,6 +132,7 @@ async function requestProtected(
           ...(organisationId
             ? { "X-Organisation-Id": organisationId }
             : {}),
+          ...(businessId ? { "X-Business-Id": businessId } : {}),
         },
       },
     );
@@ -647,5 +658,223 @@ test("/context maps organisation selection and access failures", async () => {
     });
     assert.equal(result.status, status);
     assert.equal(result.body.error.code, code);
+  }
+});
+
+test("/business-context applies all middleware in order and returns safe fields", async () => {
+  const order = [];
+  const { router } = createFixture({
+    runtime: {
+      authenticationMiddleware: async (request, _response, next) => {
+        order.push("authentication");
+        request.auth = {
+          userId: SAFE_USER.id,
+          user: {
+            id: SAFE_USER.id,
+            email: SAFE_USER.email,
+            displayName: SAFE_USER.displayName,
+            status: "active",
+            passwordHash: "must-not-be-returned",
+          },
+        };
+        next();
+      },
+      organisationContextMiddleware: async (
+        request,
+        _response,
+        next,
+      ) => {
+        order.push("organisation");
+        request.tenant = {
+          organisationId:
+            "d0000000-0000-4000-8000-000000000001",
+          organisation: {
+            id: "d0000000-0000-4000-8000-000000000001",
+            name: "Northside Barbers Organisation",
+            subscriptionStatus: "must-not-be-returned",
+          },
+          membership: {
+            id: "d0000000-0000-4000-8000-000000000002",
+            role: "owner",
+            status: "active",
+            permissions: ["must-not-be-returned"],
+          },
+        };
+        next();
+      },
+      businessContextMiddleware: async (request, _response, next) => {
+        order.push("business");
+        assert.equal(
+          request.tenant.organisationId,
+          "d0000000-0000-4000-8000-000000000001",
+        );
+        request.business = {
+          id: "e0000000-0000-4000-8000-000000000001",
+          organisationId:
+            "d0000000-0000-4000-8000-000000000001",
+          name: "Northside Barbers",
+          customers: ["must-not-be-returned"],
+          secret: "must-not-be-returned",
+        };
+        next();
+      },
+    },
+  });
+
+  const result = await requestProtected(router, "business-context", {
+    authorization: "Bearer signed-token",
+    organisationId: "d0000000-0000-4000-8000-000000000001",
+    businessId: "e0000000-0000-4000-8000-000000000001",
+  });
+
+  assert.deepEqual(order, [
+    "authentication",
+    "organisation",
+    "business",
+  ]);
+  assert.deepEqual(result, {
+    status: 200,
+    body: {
+      user: {
+        id: SAFE_USER.id,
+        email: SAFE_USER.email,
+        displayName: SAFE_USER.displayName,
+        status: "active",
+      },
+      organisation: {
+        id: "d0000000-0000-4000-8000-000000000001",
+        name: "Northside Barbers Organisation",
+      },
+      membership: {
+        id: "d0000000-0000-4000-8000-000000000002",
+        role: "owner",
+        status: "active",
+      },
+      business: {
+        id: "e0000000-0000-4000-8000-000000000001",
+        organisationId:
+          "d0000000-0000-4000-8000-000000000001",
+        name: "Northside Barbers",
+      },
+    },
+  });
+});
+
+test("/business-context stops at the first failed context layer", async () => {
+  const scenarios = [
+    {
+      layer: "authentication",
+      code: "INVALID_TOKEN",
+      status: 401,
+    },
+    {
+      layer: "organisation",
+      code: "ORGANISATION_REQUIRED",
+      status: 400,
+    },
+    {
+      layer: "organisation",
+      code: "ORGANISATION_ACCESS_DENIED",
+      status: 403,
+    },
+    {
+      layer: "business",
+      code: "BUSINESS_REQUIRED",
+      status: 400,
+    },
+    {
+      layer: "business",
+      code: "BUSINESS_ACCESS_DENIED",
+      status: 403,
+    },
+  ];
+
+  for (const scenario of scenarios) {
+    const calls = [];
+    const failingMiddleware = async (_request, _response, next) => {
+      calls.push(scenario.layer);
+      next(new AuthenticationError(scenario.code));
+    };
+    const passingMiddleware = (layer, attach) =>
+      async (request, _response, next) => {
+        calls.push(layer);
+        attach(request);
+        next();
+      };
+    const { router } = createFixture({
+      runtime: {
+        authenticationMiddleware:
+          scenario.layer === "authentication"
+            ? failingMiddleware
+            : passingMiddleware("authentication", (request) => {
+                request.auth = {
+                  userId: SAFE_USER.id,
+                  user: SAFE_USER,
+                };
+              }),
+        organisationContextMiddleware:
+          scenario.layer === "organisation"
+            ? failingMiddleware
+            : passingMiddleware("organisation", (request) => {
+                request.tenant = {
+                  organisationId:
+                    "d0000000-0000-4000-8000-000000000001",
+                  organisation: {
+                    id: "d0000000-0000-4000-8000-000000000001",
+                    name: "Organisation",
+                  },
+                  membership: {
+                    id: "d0000000-0000-4000-8000-000000000002",
+                    role: "owner",
+                    status: "active",
+                  },
+                };
+              }),
+        businessContextMiddleware:
+          scenario.layer === "business"
+            ? failingMiddleware
+            : passingMiddleware("business", (request) => {
+                request.business = {
+                  id: "e0000000-0000-4000-8000-000000000001",
+                  organisationId:
+                    "d0000000-0000-4000-8000-000000000001",
+                  name: "Business",
+                };
+              }),
+      },
+    });
+
+    const result = await requestProtected(router, "business-context");
+    assert.equal(result.status, scenario.status);
+    assert.equal(result.body.error.code, scenario.code);
+    assert.equal(calls.at(-1), scenario.layer);
+    assert.equal(
+      calls.includes("business"),
+      scenario.layer === "business",
+    );
+  }
+});
+
+test("/business-context maps infrastructure and unexpected errors safely", async () => {
+  for (const [error, status, code] of [
+    [
+      new AuthenticationError("BUSINESS_CONTEXT_UNAVAILABLE"),
+      503,
+      "BUSINESS_CONTEXT_UNAVAILABLE",
+    ],
+    [new Error("sensitive SQL business detail"), 500, "INTERNAL_ERROR"],
+  ]) {
+    const { calls, router } = createFixture({
+      runtime: {
+        businessContextMiddleware: async (_request, _response, next) => {
+          next(error);
+        },
+      },
+    });
+    const result = await requestProtected(router, "business-context");
+    assert.equal(result.status, status);
+    assert.equal(result.body.error.code, code);
+    const observable = JSON.stringify({ result, logs: calls.logs });
+    assert.equal(observable.includes("sensitive SQL"), false);
   }
 });
