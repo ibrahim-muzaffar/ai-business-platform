@@ -4,6 +4,12 @@ const AUTHENTICATION_ERROR_MESSAGES = Object.freeze({
   EMAIL_ALREADY_REGISTERED: "An account with this email already exists.",
   INVALID_CREDENTIALS: "The email or password is incorrect.",
   INVALID_TOKEN: "The access token is invalid.",
+  ORGANISATION_ACCESS_DENIED:
+    "Access to the selected organisation is denied.",
+  ORGANISATION_REQUIRED:
+    "A valid organisation selection is required.",
+  TENANT_CONTEXT_UNAVAILABLE:
+    "Organisation context could not be resolved.",
   TOKEN_EXPIRED: "The access token has expired.",
   USER_DISABLED: "This user account is disabled.",
   VALIDATION_ERROR: "The supplied authentication details are invalid.",

@@ -3,6 +3,15 @@ const { getDatabaseConnection } = require("../db/connection");
 const {
   createAuthenticationMiddleware,
 } = require("../middleware/authenticationMiddleware");
+const {
+  createOrganisationContextMiddleware,
+} = require("../middleware/organisationContextMiddleware");
+const {
+  createOrganisationMembershipRepository,
+} = require("../repositories/postgres/organisationMembershipRepository");
+const {
+  createOrganisationRepository,
+} = require("../repositories/postgres/organisationRepository");
 const { createUserRepository } = require("../repositories/postgres/userRepository");
 const { createPasswordAdapter } = require("../security/passwordAdapter");
 const { createTokenAdapter } = require("../security/tokenAdapter");
@@ -18,6 +27,9 @@ function createAuthenticationRuntime({
   const config = createAuthenticationConfig(env);
   const database = db ?? getConnection("development");
   const userRepository = createUserRepository(database);
+  const organisationMembershipRepository =
+    createOrganisationMembershipRepository(database);
+  const organisationRepository = createOrganisationRepository(database);
   const passwordAdapter = createPasswordAdapter({
     cost: config.passwordHashCost,
   });
@@ -28,6 +40,11 @@ function createAuthenticationRuntime({
       tokenAdapter,
       userRepository,
     }),
+    organisationContextMiddleware:
+      createOrganisationContextMiddleware({
+        organisationMembershipRepository,
+        organisationRepository,
+      }),
     authenticationService: createAuthenticationService({
       passwordAdapter,
       tokenAdapter,

@@ -148,6 +148,18 @@ function mapUser(row) {
   };
 }
 
+function mapOrganisation(row) {
+  if (!row) return null;
+
+  return {
+    id: row.id,
+    name: row.name,
+    subscriptionStatus: row.subscription_status,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
 function mapAuthenticationRecord(row) {
   if (!row) return null;
 
@@ -179,6 +191,7 @@ module.exports = {
   mapLead,
   mapMessage,
   mapOpeningHours,
+  mapOrganisation,
   mapOrganisationMembership,
   mapPolicy,
   mapService,

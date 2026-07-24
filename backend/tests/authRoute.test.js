@@ -62,6 +62,30 @@ function createFixture(overrides = {}) {
         });
         next();
       },
+      organisationContextMiddleware: async (
+        request,
+        _response,
+        next,
+      ) => {
+        calls.middleware += 1;
+        request.tenant = Object.freeze({
+          organisationId:
+            "d0000000-0000-4000-8000-000000000001",
+          organisation: Object.freeze({
+            id: "d0000000-0000-4000-8000-000000000001",
+            name: "Northside Barbers",
+          }),
+          membership: Object.freeze({
+            id: "d0000000-0000-4000-8000-000000000002",
+            userId: SAFE_USER.id,
+            organisationId:
+              "d0000000-0000-4000-8000-000000000001",
+            role: "owner",
+            status: "active",
+          }),
+        });
+        next();
+      },
       authenticationService,
       jwtExpirySeconds: 900,
       ...overrides.runtime,
@@ -76,7 +100,11 @@ function createFixture(overrides = {}) {
   return { calls, router };
 }
 
-async function requestMe(router, authorization) {
+async function requestProtected(
+  router,
+  path,
+  { authorization, organisationId } = {},
+) {
   const app = express();
   app.use("/api/auth", router);
   const server = await new Promise((resolve) => {
@@ -87,11 +115,14 @@ async function requestMe(router, authorization) {
 
   try {
     const response = await fetch(
-      `http://127.0.0.1:${server.address().port}/api/auth/me`,
+      `http://127.0.0.1:${server.address().port}/api/auth/${path}`,
       {
-        headers: authorization
-          ? { Authorization: authorization }
-          : {},
+        headers: {
+          ...(authorization ? { Authorization: authorization } : {}),
+          ...(organisationId
+            ? { "X-Organisation-Id": organisationId }
+            : {}),
+        },
       },
     );
     return {
@@ -432,7 +463,9 @@ test("malformed, oversized and unsupported JSON are controlled", async () => {
 
 test("/me returns only the authenticated safe user", async () => {
   const { calls, router } = createFixture();
-  const result = await requestMe(router, "Bearer signed-token");
+  const result = await requestProtected(router, "me", {
+    authorization: "Bearer signed-token",
+  });
 
   assert.deepEqual(result, {
     status: 200,
@@ -464,7 +497,7 @@ test("/me maps middleware authentication failures safely", async () => {
         },
       },
     });
-    const result = await requestMe(router);
+    const result = await requestProtected(router, "me");
     assert.equal(result.status, status);
     assert.equal(result.body.error.code, code);
     assert.equal("passwordHash" in result.body, false);
@@ -496,4 +529,123 @@ test("registration and login remain public", async () => {
   assert.equal(registration.status, 201);
   assert.equal(login.status, 200);
   assert.equal(calls.middleware, 0);
+});
+
+test("/context applies authentication then organisation context", async () => {
+  const order = [];
+  const { router } = createFixture({
+    runtime: {
+      authenticationMiddleware: async (request, _response, next) => {
+        order.push("authentication");
+        request.auth = {
+          userId: SAFE_USER.id,
+          user: {
+            id: SAFE_USER.id,
+            email: SAFE_USER.email,
+            displayName: SAFE_USER.displayName,
+            status: "active",
+            passwordHash: "must-not-be-returned",
+          },
+        };
+        next();
+      },
+      organisationContextMiddleware: async (
+        request,
+        _response,
+        next,
+      ) => {
+        order.push("organisation");
+        assert.equal(request.auth.userId, SAFE_USER.id);
+        request.tenant = {
+          organisation: {
+            id: "d0000000-0000-4000-8000-000000000001",
+            name: "Northside Barbers",
+            subscriptionStatus: "must-not-be-returned",
+          },
+          membership: {
+            id: "d0000000-0000-4000-8000-000000000002",
+            userId: SAFE_USER.id,
+            organisationId:
+              "d0000000-0000-4000-8000-000000000001",
+            role: "owner",
+            status: "active",
+            permissions: ["must-not-be-returned"],
+          },
+        };
+        next();
+      },
+    },
+  });
+
+  const result = await requestProtected(router, "context", {
+    authorization: "Bearer signed-token",
+    organisationId: "d0000000-0000-4000-8000-000000000001",
+  });
+
+  assert.deepEqual(order, ["authentication", "organisation"]);
+  assert.deepEqual(result, {
+    status: 200,
+    body: {
+      user: {
+        id: SAFE_USER.id,
+        email: SAFE_USER.email,
+        displayName: SAFE_USER.displayName,
+        status: "active",
+      },
+      organisation: {
+        id: "d0000000-0000-4000-8000-000000000001",
+        name: "Northside Barbers",
+      },
+      membership: {
+        id: "d0000000-0000-4000-8000-000000000002",
+        role: "owner",
+        status: "active",
+      },
+    },
+  });
+});
+
+test("/context stops before tenant resolution when authentication fails", async () => {
+  let tenantCalls = 0;
+  const { router } = createFixture({
+    runtime: {
+      authenticationMiddleware: async (_request, _response, next) => {
+        next(new AuthenticationError("INVALID_TOKEN"));
+      },
+      organisationContextMiddleware: async () => {
+        tenantCalls += 1;
+      },
+    },
+  });
+
+  const result = await requestProtected(router, "context", {
+    authorization: "Bearer invalid-token",
+    organisationId: "d0000000-0000-4000-8000-000000000001",
+  });
+  assert.equal(result.status, 401);
+  assert.equal(result.body.error.code, "INVALID_TOKEN");
+  assert.equal(tenantCalls, 0);
+});
+
+test("/context maps organisation selection and access failures", async () => {
+  for (const [code, status] of [
+    ["ORGANISATION_REQUIRED", 400],
+    ["ORGANISATION_ACCESS_DENIED", 403],
+    ["TENANT_CONTEXT_UNAVAILABLE", 503],
+  ]) {
+    const { router } = createFixture({
+      runtime: {
+        organisationContextMiddleware: async (
+          _request,
+          _response,
+          next,
+        ) => next(new AuthenticationError(code)),
+      },
+    });
+    const result = await requestProtected(router, "context", {
+      authorization: "Bearer signed-token",
+    });
+    assert.equal(result.status, status);
+    assert.equal(result.body.error.code, code);
+  }
 });

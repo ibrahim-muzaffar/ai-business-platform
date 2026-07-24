@@ -8,6 +8,9 @@ const {
   createOrganisationMembershipRepository,
 } = require("../../repositories/postgres/organisationMembershipRepository");
 const {
+  createOrganisationRepository,
+} = require("../../repositories/postgres/organisationRepository");
+const {
   createUserRepository,
 } = require("../../repositories/postgres/userRepository");
 
@@ -53,6 +56,29 @@ test("PostgreSQL identity repositories map, scope and update records", async () 
 
       const users = createUserRepository(trx);
       const memberships = createOrganisationMembershipRepository(trx);
+      const organisations = createOrganisationRepository(trx);
+
+      const organisationA = await organisations.findById(
+        IDS.organisationA,
+      );
+      assert.deepEqual(
+        {
+          id: organisationA.id,
+          name: organisationA.name,
+          subscriptionStatus: organisationA.subscriptionStatus,
+        },
+        {
+          id: IDS.organisationA,
+          name: "Repository Organisation A",
+          subscriptionStatus: "trial",
+        },
+      );
+      assert.ok(organisationA.createdAt instanceof Date);
+      assert.ok(organisationA.updatedAt instanceof Date);
+      assert.equal(
+        await organisations.findById(IDS.missingOrganisation),
+        null,
+      );
 
       const owner = await users.createUser({
         email: "  Owner@Example.TEST ",

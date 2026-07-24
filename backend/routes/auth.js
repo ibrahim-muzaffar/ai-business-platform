@@ -15,7 +15,10 @@ const AUTHENTICATION_HTTP_STATUS = Object.freeze({
   EMAIL_ALREADY_REGISTERED: 409,
   INVALID_CREDENTIALS: 401,
   INVALID_TOKEN: 401,
+  ORGANISATION_ACCESS_DENIED: 403,
+  ORGANISATION_REQUIRED: 400,
   TOKEN_EXPIRED: 401,
+  TENANT_CONTEXT_UNAVAILABLE: 503,
   USER_DISABLED: 403,
   AUTHENTICATION_UNAVAILABLE: 503,
 });
@@ -174,6 +177,49 @@ function createAuthRouter({
     },
     (request, response) => {
       response.status(200).json({ user: request.auth.user });
+    },
+  );
+
+  router.get(
+    "/context",
+    (request, response, next) => {
+      try {
+        const { authenticationMiddleware } = getRuntime();
+        return authenticationMiddleware(request, response, next);
+      } catch (error) {
+        next(error);
+      }
+    },
+    (request, response, next) => {
+      try {
+        const { organisationContextMiddleware } = getRuntime();
+        return organisationContextMiddleware(
+          request,
+          response,
+          next,
+        );
+      } catch (error) {
+        next(error);
+      }
+    },
+    (request, response) => {
+      response.status(200).json({
+        user: {
+          id: request.auth.user.id,
+          email: request.auth.user.email,
+          displayName: request.auth.user.displayName,
+          status: request.auth.user.status,
+        },
+        organisation: {
+          id: request.tenant.organisation.id,
+          name: request.tenant.organisation.name,
+        },
+        membership: {
+          id: request.tenant.membership.id,
+          role: request.tenant.membership.role,
+          status: request.tenant.membership.status,
+        },
+      });
     },
   );
 
