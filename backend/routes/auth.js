@@ -11,6 +11,7 @@ const {
 const AUTH_JSON_LIMIT = "16kb";
 const AUTHENTICATION_HTTP_STATUS = Object.freeze({
   AUTHENTICATION_REQUIRED: 401,
+  AUTHORIZATION_DENIED: 403,
   BUSINESS_ACCESS_DENIED: 403,
   BUSINESS_CONTEXT_UNAVAILABLE: 503,
   BUSINESS_REQUIRED: 400,
@@ -252,6 +253,70 @@ function createAuthRouter({
       try {
         const { businessContextMiddleware } = getRuntime();
         return businessContextMiddleware(request, response, next);
+      } catch (error) {
+        next(error);
+      }
+    },
+    (request, response) => {
+      response.status(200).json({
+        user: {
+          id: request.auth.user.id,
+          email: request.auth.user.email,
+          displayName: request.auth.user.displayName,
+          status: request.auth.user.status,
+        },
+        organisation: {
+          id: request.tenant.organisation.id,
+          name: request.tenant.organisation.name,
+        },
+        membership: {
+          id: request.tenant.membership.id,
+          role: request.tenant.membership.role,
+          status: request.tenant.membership.status,
+        },
+        business: {
+          id: request.business.id,
+          organisationId: request.business.organisationId,
+          name: request.business.name,
+        },
+      });
+    },
+  );
+
+  router.get(
+    "/management-context",
+    (request, response, next) => {
+      try {
+        const { authenticationMiddleware } = getRuntime();
+        return authenticationMiddleware(request, response, next);
+      } catch (error) {
+        next(error);
+      }
+    },
+    (request, response, next) => {
+      try {
+        const { organisationContextMiddleware } = getRuntime();
+        return organisationContextMiddleware(
+          request,
+          response,
+          next,
+        );
+      } catch (error) {
+        next(error);
+      }
+    },
+    (request, response, next) => {
+      try {
+        const { businessContextMiddleware } = getRuntime();
+        return businessContextMiddleware(request, response, next);
+      } catch (error) {
+        next(error);
+      }
+    },
+    (request, response, next) => {
+      try {
+        const { managementRoleMiddleware } = getRuntime();
+        return managementRoleMiddleware(request, response, next);
       } catch (error) {
         next(error);
       }

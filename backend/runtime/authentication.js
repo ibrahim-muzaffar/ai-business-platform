@@ -10,6 +10,9 @@ const {
   createOrganisationContextMiddleware,
 } = require("../middleware/organisationContextMiddleware");
 const {
+  createRequireOrganisationRolesMiddleware,
+} = require("../middleware/organisationRoleAuthorizationMiddleware");
+const {
   createOrganisationMembershipRepository,
 } = require("../repositories/postgres/organisationMembershipRepository");
 const {
@@ -54,6 +57,10 @@ function createAuthenticationRuntime({
       createOrganisationContextMiddleware({
         organisationMembershipRepository,
         organisationRepository,
+      }),
+    managementRoleMiddleware:
+      createRequireOrganisationRolesMiddleware({
+        allowedRoles: ["owner", "admin"],
       }),
     authenticationService: createAuthenticationService({
       passwordAdapter,

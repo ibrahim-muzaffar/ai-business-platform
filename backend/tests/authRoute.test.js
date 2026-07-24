@@ -3,6 +3,9 @@ const test = require("node:test");
 const express = require("express");
 
 const { AuthenticationError } = require("../errors/authenticationError");
+const {
+  createRequireOrganisationRolesMiddleware,
+} = require("../middleware/organisationRoleAuthorizationMiddleware");
 const { createAuthRouter } = require("../routes/auth");
 
 const SAFE_USER = Object.freeze({
@@ -94,6 +97,10 @@ function createFixture(overrides = {}) {
             status: "active",
           }),
         });
+        next();
+      },
+      managementRoleMiddleware: (_request, _response, next) => {
+        calls.middleware += 1;
         next();
       },
       authenticationService,
@@ -877,4 +884,177 @@ test("/business-context maps infrastructure and unexpected errors safely", async
     const observable = JSON.stringify({ result, logs: calls.logs });
     assert.equal(observable.includes("sensitive SQL"), false);
   }
+});
+
+function organisationMiddlewareForRole(role, status = "active") {
+  return async (request, _response, next) => {
+    request.tenant = {
+      organisationId:
+        "d0000000-0000-4000-8000-000000000001",
+      organisation: {
+        id: "d0000000-0000-4000-8000-000000000001",
+        name: "Northside Barbers Organisation",
+        subscriptionStatus: "must-not-be-returned",
+      },
+      membership: {
+        id: "d0000000-0000-4000-8000-000000000002",
+        userId: SAFE_USER.id,
+        organisationId:
+          "d0000000-0000-4000-8000-000000000001",
+        role,
+        status,
+        permissions: ["must-not-be-returned"],
+      },
+    };
+    next();
+  };
+}
+
+test("/management-context allows owner and admin with safe output", async () => {
+  for (const role of ["owner", "admin"]) {
+    const { router } = createFixture({
+      runtime: {
+        organisationContextMiddleware:
+          organisationMiddlewareForRole(role),
+        managementRoleMiddleware:
+          createRequireOrganisationRolesMiddleware({
+            allowedRoles: ["owner", "admin"],
+          }),
+      },
+    });
+    const result = await requestProtected(router, "management-context", {
+      authorization: "Bearer signed-token",
+      organisationId:
+        "d0000000-0000-4000-8000-000000000001",
+      businessId: "e0000000-0000-4000-8000-000000000001",
+    });
+
+    assert.deepEqual(result, {
+      status: 200,
+      body: {
+        user: {
+          id: SAFE_USER.id,
+          email: SAFE_USER.email,
+          displayName: SAFE_USER.displayName,
+          status: "active",
+        },
+        organisation: {
+          id: "d0000000-0000-4000-8000-000000000001",
+          name: "Northside Barbers Organisation",
+        },
+        membership: {
+          id: "d0000000-0000-4000-8000-000000000002",
+          role,
+          status: "active",
+        },
+        business: {
+          id: "e0000000-0000-4000-8000-000000000001",
+          organisationId:
+            "d0000000-0000-4000-8000-000000000001",
+          name: "Northside Barbers",
+        },
+      },
+    });
+    const serialized = JSON.stringify(result.body);
+    assert.equal(serialized.includes("permissions"), false);
+    assert.equal(serialized.includes("subscriptionStatus"), false);
+  }
+});
+
+test("/management-context denies staff, viewer and inactive membership", async () => {
+  for (const [role, status] of [
+    ["staff", "active"],
+    ["viewer", "active"],
+    ["owner", "invited"],
+    ["owner", "suspended"],
+  ]) {
+    const { router } = createFixture({
+      runtime: {
+        organisationContextMiddleware:
+          organisationMiddlewareForRole(role, status),
+        managementRoleMiddleware:
+          createRequireOrganisationRolesMiddleware({
+            allowedRoles: ["owner", "admin"],
+          }),
+      },
+    });
+    const result = await requestProtected(router, "management-context");
+    assert.deepEqual(result, {
+      status: 403,
+      body: {
+        error: {
+          code: "AUTHORIZATION_DENIED",
+          message: "You are not authorised to perform this action.",
+        },
+      },
+    });
+    assert.equal(JSON.stringify(result).includes(role), false);
+  }
+});
+
+test("/management-context preserves upstream authentication and context errors", async () => {
+  const scenarios = [
+    ["authenticationMiddleware", "AUTHENTICATION_REQUIRED", 401],
+    ["authenticationMiddleware", "INVALID_TOKEN", 401],
+    ["organisationContextMiddleware", "ORGANISATION_REQUIRED", 400],
+    [
+      "organisationContextMiddleware",
+      "ORGANISATION_ACCESS_DENIED",
+      403,
+    ],
+    ["businessContextMiddleware", "BUSINESS_REQUIRED", 400],
+    ["businessContextMiddleware", "BUSINESS_ACCESS_DENIED", 403],
+  ];
+
+  for (const [layer, code, status] of scenarios) {
+    let roleCalls = 0;
+    const { router } = createFixture({
+      runtime: {
+        [layer]: async (_request, _response, next) => {
+          next(new AuthenticationError(code));
+        },
+        managementRoleMiddleware: (_request, _response, next) => {
+          roleCalls += 1;
+          next();
+        },
+      },
+    });
+    const result = await requestProtected(router, "management-context");
+    assert.equal(result.status, status);
+    assert.equal(result.body.error.code, code);
+    assert.equal(roleCalls, 0);
+  }
+});
+
+test("/management-context treats missing trusted role context as internal failure", async () => {
+  const logs = [];
+  const { router } = createFixture({
+    runtime: {
+      organisationContextMiddleware: async (request, _response, next) => {
+        request.tenant = {
+          organisationId:
+            "d0000000-0000-4000-8000-000000000001",
+          organisation: {
+            id: "d0000000-0000-4000-8000-000000000001",
+            name: "Organisation",
+          },
+        };
+        next();
+      },
+      managementRoleMiddleware:
+        createRequireOrganisationRolesMiddleware({
+          allowedRoles: ["owner", "admin"],
+          logger: {
+            error(...values) {
+              logs.push(values);
+            },
+          },
+        }),
+    },
+  });
+  const result = await requestProtected(router, "management-context");
+
+  assert.equal(result.status, 500);
+  assert.equal(result.body.error.code, "INTERNAL_ERROR");
+  assert.equal(JSON.stringify(logs).includes(SAFE_USER.id), false);
 });

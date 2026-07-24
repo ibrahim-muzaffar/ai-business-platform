@@ -1,6 +1,8 @@
 const AUTHENTICATION_ERROR_MESSAGES = Object.freeze({
   AUTHENTICATION_REQUIRED: "Authentication is required.",
   AUTHENTICATION_UNAVAILABLE: "Authentication could not be completed.",
+  AUTHORIZATION_DENIED:
+    "You are not authorised to perform this action.",
   BUSINESS_ACCESS_DENIED:
     "Access to the selected business is denied.",
   BUSINESS_CONTEXT_UNAVAILABLE:
