@@ -190,6 +190,15 @@ test("PostgreSQL conversation sessions are scoped, persistent and expiring", asy
         { role: "assistant", text: "First assistant message" },
         "barber",
       );
+      await trx("messages")
+        .where({ conversation_id: created.id, content: "First user message" })
+        .update({ created_at: "2000-01-01T12:00:00.000Z" });
+      await trx("messages")
+        .where({
+          conversation_id: created.id,
+          content: "First assistant message",
+        })
+        .update({ created_at: "2000-01-01T12:01:00.000Z" });
       const beforeInvalidCount = Number(
         (
           await trx("messages")
@@ -229,13 +238,13 @@ test("PostgreSQL conversation sessions are scoped, persistent and expiring", asy
       ]);
       await trx("messages")
         .where({ conversation_id: created.id, content: "Concurrent user" })
-        .update({ created_at: "2026-07-23T12:00:00.000Z" });
+        .update({ created_at: "2000-01-01T12:02:00.000Z" });
       await trx("messages")
         .where({
           conversation_id: created.id,
           content: "Concurrent assistant",
         })
-        .update({ created_at: "2026-07-23T12:01:00.000Z" });
+        .update({ created_at: "2000-01-01T12:03:00.000Z" });
       const recent = await sessions.getSession(created.id, "barber");
       assert.equal(recent.messages.length, 2);
       assert.deepEqual(
