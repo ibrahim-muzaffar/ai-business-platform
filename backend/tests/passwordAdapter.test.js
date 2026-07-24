@@ -63,6 +63,36 @@ test("password policy rejects whitespace padding and bcrypt truncation", async (
     await passwords.verifyPassword(boundaryPassword, boundaryHash),
     true,
   );
+  assert.equal(
+    await passwords.verifyPassword(`${boundaryPassword}b`, boundaryHash),
+    false,
+  );
+});
+
+test("password verification rejects truncated multibyte alternatives", async () => {
+  const validMultibytePassword = "é".repeat(30);
+  const validMultibyteHash = await passwords.hashPassword(
+    validMultibytePassword,
+  );
+  assert.equal(
+    await passwords.verifyPassword(
+      validMultibytePassword,
+      validMultibyteHash,
+    ),
+    true,
+  );
+
+  const multibyteBoundaryPassword = "é".repeat(36);
+  const multibyteBoundaryHash = await passwords.hashPassword(
+    multibyteBoundaryPassword,
+  );
+  assert.equal(
+    await passwords.verifyPassword(
+      `${multibyteBoundaryPassword}é`,
+      multibyteBoundaryHash,
+    ),
+    false,
+  );
 });
 
 test("password adapter validates costs and verifies hashes from other costs", async () => {
@@ -91,6 +121,19 @@ test("password adapter validates costs and verifies hashes from other costs", as
 });
 
 test("password verification fails safely for invalid inputs", async () => {
-  assert.equal(await passwords.verifyPassword(null, "hash"), false);
-  assert.equal(await passwords.verifyPassword("valid password", null), false);
+  const passwordHash = await passwords.hashPassword("valid password");
+
+  for (const invalidPassword of [null, undefined, 123, ""]) {
+    assert.equal(
+      await passwords.verifyPassword(invalidPassword, passwordHash),
+      false,
+    );
+  }
+
+  for (const invalidHash of [null, undefined, 123, ""]) {
+    assert.equal(
+      await passwords.verifyPassword("valid password", invalidHash),
+      false,
+    );
+  }
 });

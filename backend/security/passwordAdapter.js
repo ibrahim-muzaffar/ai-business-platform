@@ -56,7 +56,8 @@ function createPasswordAdapter({
       typeof password !== "string" ||
       !password ||
       typeof passwordHash !== "string" ||
-      !passwordHash
+      !passwordHash ||
+      bcrypt.truncates(password)
     ) {
       return false;
     }
