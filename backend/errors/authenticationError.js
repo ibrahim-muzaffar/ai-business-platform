@@ -1,4 +1,5 @@
 const AUTHENTICATION_ERROR_MESSAGES = Object.freeze({
+  AUTHENTICATION_REQUIRED: "Authentication is required.",
   AUTHENTICATION_UNAVAILABLE: "Authentication could not be completed.",
   EMAIL_ALREADY_REGISTERED: "An account with this email already exists.",
   INVALID_CREDENTIALS: "The email or password is incorrect.",

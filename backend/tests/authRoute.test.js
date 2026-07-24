@@ -16,7 +16,12 @@ const SAFE_USER = Object.freeze({
 });
 
 function createFixture(overrides = {}) {
-  const calls = { login: [], register: [], logs: [] };
+  const calls = {
+    login: [],
+    register: [],
+    middleware: 0,
+    logs: [],
+  };
   const authenticationService = {
     async registerUser(input) {
       calls.register.push(input);
@@ -44,8 +49,22 @@ function createFixture(overrides = {}) {
   };
   const router = createAuthRouter({
     getRuntime: () => ({
+      authenticationMiddleware: async (request, _response, next) => {
+        calls.middleware += 1;
+        request.auth = Object.freeze({
+          userId: SAFE_USER.id,
+          user: Object.freeze({
+            id: SAFE_USER.id,
+            email: SAFE_USER.email,
+            displayName: SAFE_USER.displayName,
+            status: SAFE_USER.status,
+          }),
+        });
+        next();
+      },
       authenticationService,
       jwtExpirySeconds: 900,
+      ...overrides.runtime,
     }),
     logger: {
       error(...values) {
@@ -55,6 +74,35 @@ function createFixture(overrides = {}) {
   });
 
   return { calls, router };
+}
+
+async function requestMe(router, authorization) {
+  const app = express();
+  app.use("/api/auth", router);
+  const server = await new Promise((resolve) => {
+    const listener = app.listen(0, "127.0.0.1", () =>
+      resolve(listener),
+    );
+  });
+
+  try {
+    const response = await fetch(
+      `http://127.0.0.1:${server.address().port}/api/auth/me`,
+      {
+        headers: authorization
+          ? { Authorization: authorization }
+          : {},
+      },
+    );
+    return {
+      status: response.status,
+      body: await response.json(),
+    };
+  } finally {
+    await new Promise((resolve, reject) => {
+      server.close((error) => (error ? reject(error) : resolve()));
+    });
+  }
 }
 
 async function requestAuth(
@@ -380,4 +428,72 @@ test("malformed, oversized and unsupported JSON are controlled", async () => {
       },
     },
   });
+});
+
+test("/me returns only the authenticated safe user", async () => {
+  const { calls, router } = createFixture();
+  const result = await requestMe(router, "Bearer signed-token");
+
+  assert.deepEqual(result, {
+    status: 200,
+    body: {
+      user: {
+        id: SAFE_USER.id,
+        email: SAFE_USER.email,
+        displayName: SAFE_USER.displayName,
+        status: "active",
+      },
+    },
+  });
+  assert.equal(calls.middleware, 1);
+  assert.equal(calls.login.length, 0);
+  assert.equal(calls.register.length, 0);
+});
+
+test("/me maps middleware authentication failures safely", async () => {
+  for (const [code, status] of [
+    ["AUTHENTICATION_REQUIRED", 401],
+    ["TOKEN_EXPIRED", 401],
+    ["USER_DISABLED", 403],
+    ["AUTHENTICATION_UNAVAILABLE", 503],
+  ]) {
+    const { router } = createFixture({
+      runtime: {
+        authenticationMiddleware: async (_request, _response, next) => {
+          next(new AuthenticationError(code));
+        },
+      },
+    });
+    const result = await requestMe(router);
+    assert.equal(result.status, status);
+    assert.equal(result.body.error.code, code);
+    assert.equal("passwordHash" in result.body, false);
+  }
+});
+
+test("registration and login remain public", async () => {
+  const { calls, router } = createFixture({
+    runtime: {
+      authenticationMiddleware: async () => {
+        throw new Error("Public routes must not invoke middleware.");
+      },
+    },
+  });
+
+  const registration = await requestAuth(router, "register", {
+    body: {
+      email: "owner@example.test",
+      password: "registration password",
+    },
+  });
+  const login = await requestAuth(router, "login", {
+    body: {
+      email: "owner@example.test",
+      password: "login password",
+    },
+  });
+
+  assert.equal(registration.status, 201);
+  assert.equal(login.status, 200);
+  assert.equal(calls.middleware, 0);
 });

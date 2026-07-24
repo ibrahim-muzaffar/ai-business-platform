@@ -10,9 +10,12 @@ const {
 
 const AUTH_JSON_LIMIT = "16kb";
 const AUTHENTICATION_HTTP_STATUS = Object.freeze({
+  AUTHENTICATION_REQUIRED: 401,
   VALIDATION_ERROR: 400,
   EMAIL_ALREADY_REGISTERED: 409,
   INVALID_CREDENTIALS: 401,
+  INVALID_TOKEN: 401,
+  TOKEN_EXPIRED: 401,
   USER_DISABLED: 403,
   AUTHENTICATION_UNAVAILABLE: 503,
 });
@@ -97,8 +100,7 @@ function createAuthRouter({
   }
 
   const router = express.Router();
-
-  router.use((request, response, next) => {
+  const requireJson = (request, response, next) => {
     if (!request.is("application/json")) {
       sendError(
         response,
@@ -109,40 +111,71 @@ function createAuthRouter({
       return;
     }
     next();
-  });
-  router.use(express.json({ limit: AUTH_JSON_LIMIT, strict: true }));
-
-  router.post("/register", async (request, response, next) => {
-    try {
-      const input = registrationInput(request.body);
-      const { authenticationService, jwtExpirySeconds } = getRuntime();
-      const result = await authenticationService.registerUser(input);
-      response.status(201).json({
-        user: publicUser(result.user),
-        accessToken: result.accessToken,
-        tokenType: "Bearer",
-        expiresIn: jwtExpirySeconds,
-      });
-    } catch (error) {
-      next(error);
-    }
+  };
+  const parseJson = express.json({
+    limit: AUTH_JSON_LIMIT,
+    strict: true,
   });
 
-  router.post("/login", async (request, response, next) => {
-    try {
-      const input = loginInput(request.body);
-      const { authenticationService, jwtExpirySeconds } = getRuntime();
-      const result = await authenticationService.loginWithPassword(input);
-      response.status(200).json({
-        user: publicUser(result.user),
-        accessToken: result.accessToken,
-        tokenType: "Bearer",
-        expiresIn: jwtExpirySeconds,
-      });
-    } catch (error) {
-      next(error);
-    }
-  });
+  router.post(
+    "/register",
+    requireJson,
+    parseJson,
+    async (request, response, next) => {
+      try {
+        const input = registrationInput(request.body);
+        const { authenticationService, jwtExpirySeconds } =
+          getRuntime();
+        const result = await authenticationService.registerUser(input);
+        response.status(201).json({
+          user: publicUser(result.user),
+          accessToken: result.accessToken,
+          tokenType: "Bearer",
+          expiresIn: jwtExpirySeconds,
+        });
+      } catch (error) {
+        next(error);
+      }
+    },
+  );
+
+  router.post(
+    "/login",
+    requireJson,
+    parseJson,
+    async (request, response, next) => {
+      try {
+        const input = loginInput(request.body);
+        const { authenticationService, jwtExpirySeconds } =
+          getRuntime();
+        const result =
+          await authenticationService.loginWithPassword(input);
+        response.status(200).json({
+          user: publicUser(result.user),
+          accessToken: result.accessToken,
+          tokenType: "Bearer",
+          expiresIn: jwtExpirySeconds,
+        });
+      } catch (error) {
+        next(error);
+      }
+    },
+  );
+
+  router.get(
+    "/me",
+    (request, response, next) => {
+      try {
+        const { authenticationMiddleware } = getRuntime();
+        return authenticationMiddleware(request, response, next);
+      } catch (error) {
+        next(error);
+      }
+    },
+    (request, response) => {
+      response.status(200).json({ user: request.auth.user });
+    },
+  );
 
   router.use((error, request, response, _next) => {
     let status;

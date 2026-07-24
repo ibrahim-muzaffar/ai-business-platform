@@ -51,4 +51,5 @@ test("authentication runtime composes one injected database dependency", () => {
     typeof runtime.authenticationService.loginWithPassword,
     "function",
   );
+  assert.equal(typeof runtime.authenticationMiddleware, "function");
 });
